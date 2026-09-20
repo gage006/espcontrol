@@ -2229,7 +2229,8 @@ inline void setup_media_now_playing_layout(lv_obj_t *btn, lv_obj_t *icon_lbl,
 inline lv_obj_t *setup_media_progress_background(lv_obj_t *btn,
                                                  uint32_t progress_color,
                                                  uint32_t background_color,
-                                                 const std::string &entity_id) {
+                                                 const std::string &entity_id,
+                                                 bool seek_enabled = true) {
   lv_obj_set_style_bg_color(btn, lv_color_hex(background_color), LV_PART_MAIN);
   lv_obj_set_style_bg_color(
     btn, lv_color_hex(background_color),
@@ -2258,6 +2259,12 @@ inline lv_obj_t *setup_media_progress_background(lv_obj_t *btn,
   ctx->media_slider = slider;
   lv_obj_set_user_data(slider, (void *)ctx);
   slider_bind_geometry_refresh(btn, slider);
+
+  // Keep playback updates and geometry, but let the title handle play/pause taps.
+  if (!seek_enabled) {
+    lv_obj_clear_flag(slider, LV_OBJ_FLAG_CLICKABLE);
+    return slider;
+  }
 
   lv_obj_add_event_cb(slider, [](lv_event_t *e) {
     lv_obj_t *sl = static_cast<lv_obj_t *>(lv_event_get_target(e));
@@ -4622,8 +4629,10 @@ inline void setup_media_card(BtnSlot &s, const ParsedCfg &p, uint32_t on_color,
     ctx->cover_art_mode = mode == "cover_art";
     ctx->show_track_details = mode != "cover_art" || media_cover_art_details_enabled(p);
     ctx->play_pause_background = mode == "now_playing" && media_now_playing_play_pause_enabled(p);
-    if (mode == "now_playing" && media_now_playing_progress_enabled(p)) {
-      ctx->progress_slider = setup_media_progress_background(s.btn, secondary_color, tertiary_color, p.entity);
+    if (media_now_playing_progress_enabled(p) || ctx->play_pause_background) {
+      ctx->progress_slider = setup_media_progress_background(
+        s.btn, secondary_color, tertiary_color, p.entity,
+        media_now_playing_progress_enabled(p));
     }
     const CardPadding layout_padding = ctx->progress_slider ? padding : CardPadding{};
     lv_obj_set_user_data(s.sensor_container, (void *)ctx);
@@ -4677,8 +4686,7 @@ inline void setup_media_card(BtnSlot &s, const ParsedCfg &p, uint32_t on_color,
     setup_media_now_playing_layout(
       s.btn, s.icon_lbl, s.sensor_lbl, s.text_lbl, media_title_font, layout_padding,
       row_span == 1 ? 2 : 0, ctx->play_pause_background,
-      mode == "now_playing" && media_now_playing_progress_enabled(p)
-        ? layout_padding.left : 0);
+      ctx->progress_slider ? layout_padding.left : 0);
     return;
   }
   if (mode == "position") {

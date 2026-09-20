@@ -886,18 +886,12 @@ export function registerMediaCardTypes(
             }
             if (mode === "now_playing") {
                 var progressBg: any = "";
-                if (mediaNowPlayingProgressEnabled(b)) {
-                    var nowBgColor: any = WEB_UI_COLORS.secondary;
+                if (mediaNowPlayingProgressEnabled(b) || mediaNowPlayingPlayPauseEnabled(b)) {
+                    var nowBgColor: any = WEB_UI_COLORS.tertiary;
                     progressBg =
                         '<span class="sp-slider-preview" style="inset:-2px;background:#' + helpers.escHtml(nowBgColor) + '">' +
                             '<span class="sp-slider-track"><span class="sp-slider-fill" style="width:50%;height:100%;background:#' + WEB_UI_COLORS.secondary + '">' +
                             '</span></span></span>';
-                }
-                else if (mediaNowPlayingPlayPauseEnabled(b)) {
-                    var playBgColor: any = WEB_UI_COLORS.secondary;
-                    progressBg =
-                        '<span class="sp-slider-preview" style="inset:-2px;background:#' + helpers.escHtml(playBgColor) + '">' +
-                            '</span>';
                 }
                 return {
                     iconHtml: progressBg + '<span class="sp-media-now-title">Track Title</span>',

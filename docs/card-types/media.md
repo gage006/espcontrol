@@ -30,6 +30,7 @@ A Media card controls a Home Assistant `media_player`. Choose a small one-job ca
 ## What to Expect
 
 - Playback buttons send the matching Home Assistant media action.
+- **Now Playing** with **Play/Pause** shows playback progress behind the title and artist. Tap to play or pause; the progress display does not seek. Choose **Track Position** to enable seeking instead.
 - Shuffle and Repeat appear in **All Controls** only when the player advertises support for them. A supported control stays disabled until Home Assistant reports its current state, then continues to follow changes made elsewhere.
 - Repeat cycles through **Off**, **All**, and **One**. Its icon changes to Repeat Once in **One** mode, while active Shuffle and Repeat modes use the accent colour.
 - Volume and track position follow changes made elsewhere in Home Assistant. Some players show progress but do not support seeking; some only support volume up and down rather than an exact level.
