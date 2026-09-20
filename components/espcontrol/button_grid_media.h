@@ -247,8 +247,8 @@ inline void media_control_send_power_action(MediaControlCtx *ctx) {
 }
 
 inline std::string media_metadata_text(esphome::StringRef value, const char *fallback) {
-  std::string text = decode_html_entities(
-    string_ref_limited(value, HA_STATE_TEXT_MAX_LEN));
+  std::string text = espcontrol::media::normalize_media_display_text(
+    decode_html_entities(string_ref_limited(value, HA_STATE_TEXT_MAX_LEN)));
   if (text.empty() || text == "unknown" || text == "unavailable")
     text = fallback ? fallback : "--";
   return text;
@@ -286,6 +286,7 @@ inline void media_set_now_playing_artist(MediaNowPlayingCtx *ctx,
                                          esphome::StringRef artist) {
   if (!ctx) return;
   std::string text = media_metadata_text(artist, "");
+  text = espcontrol::media::normalize_media_display_text(text, sizeof(ctx->artist) - 1);
   std::strncpy(ctx->artist, text.c_str(), sizeof(ctx->artist) - 1);
   ctx->artist[sizeof(ctx->artist) - 1] = '\0';
 }
@@ -1147,11 +1148,13 @@ inline void media_playback_apply_state_to_now_playing_snapshot(
     }
   }
   if (ctx->title_lbl) {
-    const std::string title =
+    std::string title =
       idle_placeholder ? std::string()
       : ctx->external_source_fallback && state->external_source && !state->source.empty()
         ? state->source
         : state->title.empty() ? std::string("--") : state->title;
+    title = espcontrol::media::normalize_media_display_text(title);
+    if (title.empty() && !idle_placeholder) title = "--";
     lv_label_set_display_text(ctx->title_lbl, title.c_str());
     if (!idle_placeholder &&
         (ctx->show_track_details || ctx->external_source_fallback)) {
@@ -1161,12 +1164,14 @@ inline void media_playback_apply_state_to_now_playing_snapshot(
     }
   }
   if (ctx->artist_lbl) {
-    std::strncpy(ctx->artist, state->artist.c_str(), sizeof(ctx->artist) - 1);
+    const std::string artist = espcontrol::media::normalize_media_display_text(
+      state->artist, sizeof(ctx->artist) - 1);
+    std::strncpy(ctx->artist, artist.c_str(), sizeof(ctx->artist) - 1);
     ctx->artist[sizeof(ctx->artist) - 1] = '\0';
     media_apply_now_playing_artist_text(ctx);
     if (!idle_placeholder &&
         espcontrol::cover_art::media_now_playing_artist_visible(
-          !state->artist.empty(), ctx->external_source,
+          !artist.empty(), ctx->external_source,
           ctx->show_track_details, ctx->external_source_fallback)) {
       lv_obj_clear_flag(ctx->artist_lbl, LV_OBJ_FLAG_HIDDEN);
     } else {
@@ -2483,19 +2488,22 @@ inline void setup_media_control_button(lv_obj_t *btn, lv_obj_t *icon_lbl,
 
 inline std::string media_control_title_text(MediaControlCtx *ctx) {
   if (!ctx) return "--";
-  if (!ctx->title.empty()) return ctx->title;
+  const std::string title = espcontrol::media::normalize_media_display_text(ctx->title);
+  if (!title.empty()) return title;
   return media_status_text(ctx->state_text);
 }
 
 inline std::string media_control_artist_text(MediaControlCtx *ctx) {
   if (!ctx) return "";
+  const std::string artist = espcontrol::media::normalize_media_display_text(ctx->artist);
   if (!espcontrol::media::media_modal_artist_visible(
-        ctx->cover_art_mode, ctx->state_text, !ctx->artist.empty())) {
+        ctx->cover_art_mode, ctx->state_text, !artist.empty())) {
     return "";
   }
-  if (!ctx->artist.empty()) return ctx->artist;
-  if (!ctx->friendly_name.empty()) return ctx->friendly_name;
-  return ctx->label;
+  if (!artist.empty()) return artist;
+  if (!ctx->friendly_name.empty())
+    return espcontrol::media::normalize_media_display_text(ctx->friendly_name);
+  return espcontrol::media::normalize_media_display_text(ctx->label);
 }
 
 inline int media_control_volume_max_pct(MediaControlCtx *ctx) {
