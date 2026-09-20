@@ -996,6 +996,11 @@ inline void media_playback_apply_state_to_slider(MediaPlaybackState *state,
   if (!state || !ctx) return;
   ctx->available = state->available;
   ctx->media_playing = state->playing;
+  if (ctx->media_highlight_playing && ctx->fill) {
+    lv_obj_set_style_bg_color(ctx->fill, lv_color_hex(
+      state->available && state->playing
+        ? ctx->media_progress_color : ctx->media_paused_color), LV_PART_MAIN);
+  }
   if (ctx->media_status_lbl) {
     std::string label = media_status_text(state->available ? state->state_text : std::string("unavailable"));
     lv_label_set_display_text(ctx->media_status_lbl, label.c_str());
@@ -2235,7 +2240,8 @@ inline lv_obj_t *setup_media_progress_background(lv_obj_t *btn,
                                                  uint32_t progress_color,
                                                  uint32_t background_color,
                                                  const std::string &entity_id,
-                                                 bool seek_enabled = true) {
+                                                 bool seek_enabled = true,
+                                                 uint32_t playing_color = 0) {
   lv_obj_set_style_bg_color(btn, lv_color_hex(background_color), LV_PART_MAIN);
   lv_obj_set_style_bg_color(
     btn, lv_color_hex(background_color),
@@ -2261,6 +2267,10 @@ inline lv_obj_t *setup_media_progress_background(lv_obj_t *btn,
   ctx->content_pad_right = padding.right;
   ctx->content_pad_bottom = padding.bottom;
   ctx->media_position = true;
+  ctx->interactive = seek_enabled;
+  ctx->media_highlight_playing = !seek_enabled;
+  ctx->media_progress_color = playing_color;
+  ctx->media_paused_color = progress_color;
   ctx->media_slider = slider;
   lv_obj_set_user_data(slider, (void *)ctx);
   slider_bind_geometry_refresh(btn, slider);
@@ -2268,7 +2278,6 @@ inline lv_obj_t *setup_media_progress_background(lv_obj_t *btn,
   // Keep playback updates and geometry, but let the title handle play/pause taps.
   if (!seek_enabled) {
     lv_obj_clear_flag(slider, LV_OBJ_FLAG_CLICKABLE);
-    return slider;
   }
 
   lv_obj_add_event_cb(slider, [](lv_event_t *e) {
@@ -2282,7 +2291,7 @@ inline lv_obj_t *setup_media_progress_background(lv_obj_t *btn,
   lv_obj_add_event_cb(slider, [](lv_event_t *e) {
     lv_obj_t *sl = static_cast<lv_obj_t *>(lv_event_get_target(e));
     SliderCtx *ctx = (SliderCtx *)lv_obj_get_user_data(sl);
-    if (!ctx || ctx->entity_id.empty() || !ctx->available) return;
+    if (!ctx || !ctx->interactive || ctx->entity_id.empty() || !ctx->available) return;
     int val = lv_slider_get_value(sl);
     media_set_pending_seek_position(ctx, val);
     send_media_seek_action(ctx->entity_id, val, ctx->media_duration);
@@ -4640,7 +4649,7 @@ inline void setup_media_card(BtnSlot &s, const ParsedCfg &p, uint32_t on_color,
     if (media_now_playing_progress_enabled(p) || ctx->play_pause_background) {
       ctx->progress_slider = setup_media_progress_background(
         s.btn, secondary_color, tertiary_color, p.entity,
-        media_now_playing_progress_enabled(p));
+        media_now_playing_progress_enabled(p), on_color);
     }
     const CardPadding layout_padding = ctx->progress_slider ? padding : CardPadding{};
     lv_obj_set_user_data(s.sensor_container, (void *)ctx);

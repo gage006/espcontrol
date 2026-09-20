@@ -66,6 +66,9 @@ struct SliderCtx {
   float media_seek_target_seconds = 0.0f;
   uint32_t media_seek_pending_ms = 0;
   bool media_playing = false;
+  bool media_highlight_playing = false;
+  uint32_t media_progress_color = 0;
+  uint32_t media_paused_color = 0;
   lv_obj_t *media_slider = nullptr;
   lv_timer_t *media_timer = nullptr;
   uint8_t media_position_refresh_remaining = 0;
@@ -1392,7 +1395,7 @@ inline void slider_update_ctx_fill(SliderCtx *c, lv_obj_t *btn, int pct) {
     slider_update_horizontal_track_fill(c->fill, btn, pct);
   } else {
     slider_update_fill(c->fill, btn, pct, c->horizontal, c->inverted, c->radius,
-                       c->media_position);
+                       c->media_position && c->interactive);
   }
 }
 

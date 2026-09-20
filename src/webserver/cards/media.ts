@@ -888,9 +888,11 @@ export function registerMediaCardTypes(
                 var progressBg: any = "";
                 if (mediaNowPlayingProgressEnabled(b) || mediaNowPlayingPlayPauseEnabled(b)) {
                     var nowBgColor: any = WEB_UI_COLORS.tertiary;
+                    var nowProgressColor: any = mediaNowPlayingPlayPauseEnabled(b)
+                        ? (state.onColor || WEB_UI_COLORS.primary) : WEB_UI_COLORS.secondary;
                     progressBg =
                         '<span class="sp-slider-preview" style="inset:-2px;background:#' + helpers.escHtml(nowBgColor) + '">' +
-                            '<span class="sp-slider-track"><span class="sp-slider-fill" style="width:50%;height:100%;background:#' + WEB_UI_COLORS.secondary + '">' +
+                            '<span class="sp-slider-track"><span class="sp-slider-fill" style="width:50%;height:100%;background:#' + helpers.escHtml(nowProgressColor) + '">' +
                             '</span></span></span>';
                 }
                 return {
