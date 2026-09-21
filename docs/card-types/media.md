@@ -29,6 +29,7 @@ A Media card controls a Home Assistant `media_player`. Choose a small one-job ca
 
 ## What to Expect
 
+- **Now Playing** with **Seek** enabled shows progress in your highlight colour. Tap the title card to play or pause; use **Track Position** or the **All Controls** progress tab to seek.
 - Playback buttons send the matching Home Assistant media action.
 - Titles and artists display fullwidth Latin characters as ordinary letters (for example, `ＯＳＡＫＡ` becomes `OSAKA`) and omit emoji. This also applies to the Cover Art screensaver. Supported accented, Greek, and Cyrillic text is preserved; other scripts still depend on the panel's font coverage. The original Home Assistant metadata is unchanged.
 - Shuffle and Repeat appear in **All Controls** only when the player advertises support for them. A supported control stays disabled until Home Assistant reports its current state, then continues to follow changes made elsewhere.
