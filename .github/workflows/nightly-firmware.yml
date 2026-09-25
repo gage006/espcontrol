@@ -180,6 +180,7 @@ jobs:
             container=$(${DOCKER} create \
               --user "$(id -u):$(id -g)" \
               -e HOME=/config \
+              -e UV_CACHE_DIR=/config/.esphome/uv \
               -e PLATFORMIO_CORE_DIR=/config/.esphome/platformio \
               -e PLATFORMIO_SETTING_ENABLE_TELEMETRY=false \
               -v "${shared_platformio_cache}:/config/.esphome" \
