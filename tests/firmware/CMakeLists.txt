@@ -91,11 +91,6 @@ target_include_directories(external_memory_allocator_test PRIVATE
 )
 add_test(NAME external_memory_allocator_test COMMAND external_memory_allocator_test)
 
-add_executable(alarm_delay_audio_test alarm_delay_audio_test.cpp)
-target_compile_features(alarm_delay_audio_test PRIVATE cxx_std_17)
-target_compile_options(alarm_delay_audio_test PRIVATE -Wall -Wextra -Werror)
-target_include_directories(alarm_delay_audio_test PRIVATE ../../components/espcontrol)
-add_test(NAME alarm_delay_audio_test COMMAND alarm_delay_audio_test)
 
 add_executable(climate_target_logic_test climate_target_logic_test.cpp)
 target_compile_features(climate_target_logic_test PRIVATE cxx_std_17)
@@ -370,6 +365,9 @@ target_compile_options(climate_subscription_runtime_test PRIVATE -Wall -Wextra -
 target_include_directories(climate_subscription_runtime_test PRIVATE stubs ../../components/espcontrol)
 add_test(NAME climate_subscription_runtime_test COMMAND climate_subscription_runtime_test)
 
+add_test(NAME display_schedule_test COMMAND
+  ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/display_schedule_test.py
+  --compiler ${CMAKE_CXX_COMPILER})
 add_test(NAME cover_art_activation_test COMMAND
   ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/cover_art_activation_test.py
   --compiler ${CMAKE_CXX_COMPILER})
@@ -384,6 +382,14 @@ target_compile_features(rgb565_scaler_test PRIVATE cxx_std_17)
 target_compile_options(rgb565_scaler_test PRIVATE -Wall -Wextra -Werror)
 target_include_directories(rgb565_scaler_test PRIVATE ../../components/artwork_image)
 add_test(NAME rgb565_scaler_test COMMAND rgb565_scaler_test)
+
+add_executable(scanline_resampler_test scanline_resampler_test.cpp)
+target_compile_features(scanline_resampler_test PRIVATE cxx_std_17)
+target_compile_options(scanline_resampler_test PRIVATE -Wall -Wextra -Werror)
+target_include_directories(scanline_resampler_test PRIVATE ../../components/artwork_image)
+add_test(NAME scanline_resampler_test COMMAND scanline_resampler_test)
+add_test(NAME image_resize_integration_test COMMAND
+  ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/image_resize_integration_test.py ${CMAKE_CXX_COMPILER})
 
 file(GLOB SAVED_CONFIG_FIXTURES
   CONFIGURE_DEPENDS
@@ -435,6 +441,13 @@ target_compile_options(climate_update_test PRIVATE -Wall -Wextra -Werror)
 target_include_directories(climate_update_test PRIVATE stubs ../../components/espcontrol)
 add_test(NAME climate_update_test COMMAND climate_update_test)
 
+add_executable(camera_refresh_policy_test camera_refresh_policy_test.cpp)
+target_compile_features(camera_refresh_policy_test PRIVATE cxx_std_17)
+target_compile_options(camera_refresh_policy_test PRIVATE -Wall -Wextra -Werror)
+target_include_directories(camera_refresh_policy_test PRIVATE ../../components/espcontrol)
+add_test(NAME camera_refresh_policy_test COMMAND camera_refresh_policy_test)
+add_test(NAME camera_refresh_runtime_test COMMAND
+  ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/camera_refresh_runtime_test.py)
 add_executable(reset_policy_test reset_policy_test.cpp)
 find_package(Threads REQUIRED)
 target_link_libraries(reset_policy_test PRIVATE Threads::Threads)
@@ -486,3 +499,27 @@ add_test(NAME timer_subpage_cleanup_test
 
 add_test(NAME camera_feedback_test COMMAND
   ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/camera_feedback_test.py ${CMAKE_CXX_COMPILER})
+
+add_test(NAME remote_modal_test COMMAND
+  ${CMAKE_COMMAND} -E env "CXX=${CMAKE_CXX_COMPILER}"
+  ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/remote_modal_test.py)
+
+add_test(NAME clock_image_overlay_test COMMAND
+  ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/clock_image_overlay_test.py)
+
+add_executable(home_assistant_endpoint_resolver_test
+  home_assistant_endpoint_resolver_test.cpp
+  ../../components/espcontrol/home_assistant_endpoint_resolver.cpp
+  ../../components/espcontrol/home_assistant_endpoint_probe.cpp)
+target_compile_features(home_assistant_endpoint_resolver_test PRIVATE cxx_std_17)
+target_compile_options(home_assistant_endpoint_resolver_test PRIVATE -Wall -Wextra -Werror)
+target_include_directories(home_assistant_endpoint_resolver_test PRIVATE endpoint_stubs ../../components/espcontrol)
+add_test(NAME home_assistant_endpoint_resolver_test COMMAND home_assistant_endpoint_resolver_test)
+
+add_executable(home_assistant_endpoint_probe_test
+  home_assistant_endpoint_probe_test.cpp ../../components/espcontrol/home_assistant_endpoint_probe.cpp)
+target_compile_features(home_assistant_endpoint_probe_test PRIVATE cxx_std_17)
+target_compile_options(home_assistant_endpoint_probe_test PRIVATE -Wall -Wextra -Werror)
+target_compile_definitions(home_assistant_endpoint_probe_test PRIVATE USE_ESP_IDF)
+target_include_directories(home_assistant_endpoint_probe_test PRIVATE endpoint_idf_stubs endpoint_stubs ../../components/espcontrol)
+add_test(NAME home_assistant_endpoint_probe_test COMMAND home_assistant_endpoint_probe_test)

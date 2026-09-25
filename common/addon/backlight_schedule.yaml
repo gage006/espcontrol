@@ -361,10 +361,17 @@ text:
         - if:
             condition:
               lambda: |-
-                return id(espcontrol_app).display().current_mode_is(
-                    espcontrol::DisplayMode::CLOCK);
+                const auto mode = id(espcontrol_app).display().current_mode();
+                return mode == espcontrol::DisplayMode::CLOCK ||
+                       ((mode == espcontrol::DisplayMode::COVER_ART ||
+                         mode == espcontrol::DisplayMode::CAMERA) &&
+                        id(clock_overlay_enabled).state);
             then:
-              - lambda: 'apply_clock_screensaver_text_color(id(clock_label), id(schedule_clock_text_color).state);'
+              - lambda: |-
+                  apply_clock_screensaver_text_color(
+                      id(clock_label), id(schedule_clock_text_color).state);
+                  apply_clock_screensaver_text_color(
+                      id(clock_image_overlay_label), id(schedule_clock_text_color).state);
 
   - platform: template
     name: "${entity_screen_brightness_dawn_time}"
@@ -672,14 +679,10 @@ script:
     mode: restart
     then:
       - script.stop: screen_schedule_wake_timeout_check
-      - lambda: |-
-          id(espcontrol_app).display().clear(
-              espcontrol::DisplayRequestSource::MANUAL_SLEEP);
       - globals.set: { id: manual_wake_ms, value: '0' }
       - script.execute: display_mode_reconcile
       - script.wait: display_mode_apply_transition
-      - script.execute: screensaver_idle_check
-      - script.execute: home_screen_idle_check
+      - script.execute: display_active_finalize
 
   # ---------------------------------------------------------------------------
   # Keep the screen awake during the scheduled night period
@@ -743,7 +746,7 @@ script:
             uint32_t timeout_ms = (uint32_t) (timeout_s * 1000.0f);
             if (elapsed >= timeout_ms) id(manual_wake_ms) = 0;
           }
-          id(display_mode_reconcile).execute();
+      - script.execute: display_mode_reconcile
 
   # ---------------------------------------------------------------------------
   # Put the screen back to sleep after a temporary off-hours wake
@@ -800,7 +803,9 @@ script:
           if (!id(espcontrol_app).display().target_mode_is(
                 espcontrol::DisplayMode::ACTIVE) &&
               !id(espcontrol_app).display().target_mode_is(
-                espcontrol::DisplayMode::COVER_ART)) return;
+                espcontrol::DisplayMode::COVER_ART) &&
+              !id(espcontrol_app).display().target_mode_is(
+                espcontrol::DisplayMode::CAMERA)) return;
           const bool onboarding = id(espcontrol_app).display().target_source_is(
               espcontrol::DisplayRequestSource::ONBOARDING);
           auto now = panel_time_or_fallback(id(panel_time).now(), id(homeassistant_time).now());

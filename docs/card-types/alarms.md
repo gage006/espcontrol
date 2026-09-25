@@ -1,5 +1,5 @@
 ---
-title: Alarm Cards
+title: "Home Assistant Alarm Cards"
 description:
   How to use alarm cards on your EspControl panel to arm, disarm, and monitor Home Assistant alarm_control_panel entities.
 ---
@@ -62,10 +62,6 @@ Use the PIN settings to match how you want the wall panel to behave:
 - Leave **PIN required for arming** on if you do not want accidental arm actions.
 - Leave **PIN required for disarming** on for panels in shared spaces.
 - Turn off the arming PIN only when quick arming is safe for that panel location.
-
-## Entry and Exit Delays
-
-When Home Assistant reports an arming or entry delay, All Controls shows a countdown and progress bar. On the **ESP32-P4 86 Panel**, optional delay sounds are available under **Settings → Alarm Audio**. They are off by default.
 
 ## How It Works on the Panel
 

@@ -7,6 +7,10 @@
 #include "grid_navigation_service.h"
 #include "espcontrol_app_core.h"
 
+// Implemented by button_grid_image.h; navigation calls this when a subpage
+// becomes active after the S3 camera screensaver released image buffers.
+inline void refresh_visible_image_cards();
+
 // ── Home Assistant-driven home-screen navigation ─────────────────────
 
 struct NavigationHomeTargetEntry {
@@ -29,6 +33,7 @@ struct NavigationSubpageEntry {
     lv_obj_t *button = nullptr;
     BtnSlot slot{};
     SubpageBtn definition{};
+    int display_order = 0;
   };
   std::vector<Card> cards;
 };
@@ -179,24 +184,6 @@ inline int navigation_slot_from_target(const std::string &target) {
   return slot;
 }
 
-inline bool navigation_is_voice_target(const std::string &target) {
-  std::string normalized = navigation_lower(navigation_trim(target));
-  return normalized == "voice" || normalized == "mic" ||
-         normalized == "microphone" || normalized == "speaker" ||
-         normalized == "volume" || normalized == "device_volume";
-}
-
-inline bool navigation_has_home_label_target(const std::string &target) {
-  std::string wanted = navigation_lower(navigation_trim(target));
-  if (wanted.empty()) return false;
-
-  for (auto &entry : navigation_home_targets()) {
-    if (entry.button == nullptr || entry.label.empty()) continue;
-    if (navigation_lower(entry.label) == wanted) return true;
-  }
-  return false;
-}
-
 inline NavigationHomeTargetEntry *navigation_find_label_target(
     const std::string &target, bool *duplicate_found = nullptr) {
   if (duplicate_found) *duplicate_found = false;
@@ -265,11 +252,6 @@ inline void navigation_refresh_subpage_label() {
     set_clock_bar_subpage_label(espcontrol_i18n(std::string("Settings")));
     return;
   }
-  const auto &volume = media_volume_modal_ui();
-  if (volume.overlay && volume.active && !volume.active->clock_bar_title.empty()) {
-    set_clock_bar_subpage_label(volume.active->clock_bar_title);
-    return;
-  }
   set_clock_bar_subpage_label(navigation_active_subpage_label());
 }
 
@@ -277,6 +259,7 @@ inline bool navigation_restore_subpage_slot(int slot) {
   NavigationSubpageEntry *entry = navigation_find_slot(slot);
   if (entry == nullptr || entry->screen == nullptr) return false;
   lv_scr_load_anim(entry->screen, LV_SCR_LOAD_ANIM_NONE, 0, 0, false);
+  refresh_visible_image_cards();
   return true;
 }
 
@@ -295,7 +278,8 @@ inline void navigation_register_subpage_card(int slot, int index,
   if (index <= 0 || card_slot.btn == nullptr) return;
   NavigationSubpageEntry *entry = navigation_find_slot(slot);
   if (entry == nullptr) return;
-  entry->cards.push_back({index, card_slot.btn, card_slot, definition});
+  entry->cards.push_back({index, card_slot.btn, card_slot, definition,
+                          static_cast<int>(entry->cards.size())});
 }
 
 inline void navigation_retire_subpage(int slot, lv_obj_t *main_page_obj) {
@@ -338,6 +322,7 @@ inline bool navigation_open_first_kind(const std::string &kind,
     return false;
   }
   lv_scr_load_anim(target->screen, LV_SCR_LOAD_ANIM_NONE, 0, 0, false);
+  refresh_visible_image_cards();
   return true;
 }
 

@@ -18,6 +18,7 @@ SCREEN_WIFI_SETUP_PATH = ROOT / "common" / "device" / "screen_wifi_setup.yaml"
 API_NAVIGATE_PATH = ROOT / "common" / "device" / "api_navigate.yaml"
 C6_FIRMWARE_UPDATE_PATH = ROOT / "common" / "device" / "esp32_c6_firmware_update.yaml"
 COVER_ART_PATH = ROOT / "common" / "device" / "screen_cover_art.yaml"
+CAMERA_SCREENSAVER_PATH = ROOT / "common" / "device" / "screen_camera_screensaver.yaml"
 SCREEN_CLOCK_PATH = ROOT / "common" / "device" / "screen_clock.yaml"
 ARTWORK_IMAGE_PATH = ROOT / "components" / "artwork_image" / "artwork_image.cpp"
 BACKLIGHT_PATH = ROOT / "common" / "addon" / "backlight.yaml"
@@ -106,21 +107,21 @@ def package_api_navigate_enabled(package_path: Path, root: Path) -> bool:
     return bool(package.get("apiNavigateAction", True))
 
 
-def package_local_voice_services_enabled(package_path: Path, root: Path) -> bool:
+def package_api_open_modal_enabled(package_path: Path, root: Path) -> bool:
     manifest_path = root / "devices" / "manifest.json"
     if not manifest_path.exists():
-        return False
+        return True
     try:
         slug = package_path.relative_to(root / "devices").parts[0]
     except (ValueError, IndexError):
-        return False
+        return True
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError:
-        return False
+        return True
     device = manifest.get("devices", {}).get(slug, {})
     package = device.get("firmware", {}).get("package", {})
-    return bool(package.get("localVoiceServices"))
+    return bool(package.get("apiOpenModalAction", True))
 
 
 HA_BOUNDARY_ALLOWLIST = {
@@ -1200,7 +1201,7 @@ def firmware_cover_art_lifecycle_controller_errors(
         errors.append(f"{cover_art_rel}: wait for controller dismissal before releasing cover art resources")
     if "script.wait: display_mode_clear_cover_art" not in playback_restore:
         errors.append(f"{cover_art_rel}: wait for controller dismissal before restoring playback UI")
-    if "DisplayRequestSource::MEDIA_PLAYBACK" in reconcile:
+    if re.search(r"(?:set_request|controller\.request)\(\s*espcontrol::DisplayRequestSource::MEDIA_PLAYBACK", reconcile):
         errors.append(f"{backlight_rel}: do not rebuild media requests from the compatibility cover art flag")
     if (
         "previous_cover_generation" not in reconcile
@@ -1381,19 +1382,14 @@ def firmware_media_sleep_prevention_errors(
 
 def firmware_touch_cover_art_delay_errors(paths: tuple[Path, ...], root: Path) -> list[str]:
     errors: list[str] = []
-    required_sequence = (
-        "on_touch:\n"
-        "      - script.execute: cover_art_pause_after_touch\n"
-        "      - script.wait: cover_art_pause_after_touch\n"
-        "      - script.execute: screensaver_wake"
-    )
+    required_sequence = "on_touch:\n      - script.execute: cover_art_handle_touch"
     for path in paths:
         text = path.read_text(encoding="utf-8")
-        if "on_touch:" not in text or "script.execute: screensaver_wake" not in text:
+        if "on_touch:" not in text:
             continue
         if required_sequence not in text:
             errors.append(
-                f"{path.relative_to(root)}: restart the cover art Show After delay before every touchscreen wake"
+                f"{path.relative_to(root)}: route touches through cover art before waking the screen"
             )
     return errors
 
@@ -2364,7 +2360,7 @@ def firmware_image_card_startup_errors(
         or "ctx->media_artwork_retry_mask = 0;" not in text
         or "ctx->pending_fallback_picture.clear();" not in text
         or "artwork_picture_response_clears_retry" not in text
-        or "inline void image_card_refresh_due()" not in text
+        or "inline void image_card_refresh_due(" not in text
         or text.count("image_card_request_current_picture(ctx);") < 2
         or "media_artwork_retry_mask" not in text
         or "artwork_source_request_mask" not in text
@@ -2857,6 +2853,83 @@ def firmware_clock_bar_navigation_errors(
     return errors
 
 
+def firmware_display_active_finalization_errors(
+    backlight_path: Path,
+    schedule_path: Path,
+    connectivity_paths: tuple[Path, ...],
+    root: Path,
+) -> list[str]:
+    errors: list[str] = []
+
+    backlight_rel = backlight_path.relative_to(root)
+    backlight_text = backlight_path.read_text(encoding="utf-8")
+    finalize_body = yaml_script_body(backlight_text, "display_active_finalize")
+    if finalize_body is None:
+        errors.append(f"{backlight_rel}: missing shared active-display finalizer")
+    else:
+        ordered_tokens = (
+            "delay: 50ms",
+            "espcontrol::DisplayMode::ACTIVE",
+            "lv_scr_act() == id(main_page)->obj",
+            "script.execute: clock_bar_apply",
+            "script.wait: clock_bar_apply",
+            "script.execute: backlight_apply_brightness",
+            "script.wait: backlight_apply_brightness",
+            "script.execute: screensaver_idle_check",
+            "script.execute: home_screen_idle_check",
+        )
+        indexes = [finalize_body.find(token) for token in ordered_tokens]
+        if any(index == -1 for index in indexes) or indexes != sorted(indexes):
+            errors.append(
+                f"{backlight_rel}: finalize active display after page settle with clock bar, "
+                "configured brightness, and idle timers"
+            )
+
+    schedule_rel = schedule_path.relative_to(root)
+    schedule_text = schedule_path.read_text(encoding="utf-8")
+    wake_body = yaml_script_body(schedule_text, "screen_schedule_wake")
+    if wake_body is None:
+        errors.append(f"{schedule_rel}: missing screen_schedule_wake script")
+    else:
+        reconcile_index = wake_body.find("script.execute: display_mode_reconcile")
+        transition_index = wake_body.find("script.wait: display_mode_apply_transition")
+        finalize_index = wake_body.find("script.execute: display_active_finalize")
+        if not (0 <= reconcile_index < transition_index < finalize_index):
+            errors.append(
+                f"{schedule_rel}: wait for scheduled wake transition before finalizing the active display"
+            )
+        if "espcontrol::DisplayRequestSource::MANUAL_SLEEP" in wake_body:
+            errors.append(
+                f"{schedule_rel}: preserve manual sleep across automatic scheduled wake"
+            )
+
+    transition_body = yaml_script_body(backlight_text, "display_mode_apply_transition") or ""
+    completion_index = transition_body.find("complete_transition(")
+    finalize_index = transition_body.find("script.execute: display_active_finalize")
+    if not (0 <= completion_index < finalize_index):
+        errors.append(
+            f"{backlight_rel}: finalize every completed active transition in the shared adapter"
+        )
+
+    for connectivity_path in connectivity_paths:
+        if not connectivity_path.exists():
+            continue
+        connectivity_rel = connectivity_path.relative_to(root)
+        navigation_body = yaml_script_body(
+            connectivity_path.read_text(encoding="utf-8"), "navigate_after_api"
+        )
+        if navigation_body is None:
+            continue
+        page_index = navigation_body.find("lvgl.page.show: main_page")
+        finalize_index = navigation_body.find("script.execute: display_active_finalize")
+        if not (0 <= page_index < finalize_index):
+            errors.append(
+                f"{connectivity_rel}: finalize brightness, clock bar, and idle timers after main-page navigation"
+            )
+
+    return errors
+
+
 def firmware_clock_screensaver_overlay_errors(backlight_path: Path, root: Path) -> list[str]:
     errors: list[str] = []
     if not backlight_path.exists():
@@ -3026,7 +3099,14 @@ def firmware_screen_schedule_screensaver_override_errors(backlight_path: Path, r
             adapter_body is not None
             and "espcontrol::DisplayMode::COVER_ART" in adapter_body
             and "id: cover_art_hide_effect" in adapter_body
-            and "DisplayRequestSource::MEDIA_PLAYBACK" not in reconcile_body
+            and (
+                "DisplayRequestSource::MEDIA_PLAYBACK" not in reconcile_body
+                or (
+                    "if (!controller.target_mode_is(espcontrol::DisplayMode::COVER_ART))" in reconcile_body
+                    and "if (id(cover_art_playback_control).retains_pause(id(cover_art_active_media_player_entity)))" in reconcile_body
+                    and "controller.request(espcontrol::DisplayRequestSource::MEDIA_PLAYBACK" not in reconcile_body
+                )
+            )
         )
         legacy_clears_cover_art = (
             "if (schedule_night && id(espcontrol_app).display().target_mode_is(espcontrol::DisplayMode::COVER_ART))" in reconcile_body
@@ -3452,8 +3532,11 @@ def firmware_s3_api_errors(
     if s3_packages_path.exists():
         s3_rel = s3_packages_path.relative_to(root)
         s3_packages = s3_packages_path.read_text(encoding="utf-8")
-        if "api_navigate" in s3_packages or "api_navigate.yaml" in s3_packages:
-            errors.append(f"{s3_rel}: omit the Home Assistant navigate API action on S3")
+        has_navigate_package = "api_navigate" in s3_packages or "api_navigate.yaml" in s3_packages
+        if package_api_navigate_enabled(s3_packages_path, root) and not has_navigate_package:
+            errors.append(f"{s3_rel}: include the Home Assistant navigate API action on S3")
+        elif not package_api_navigate_enabled(s3_packages_path, root) and has_navigate_package:
+            errors.append(f"{s3_rel}: omit the Home Assistant navigate API action when disabled")
 
     for package_path in package_paths:
         if package_path == s3_packages_path or not package_path.exists():
@@ -3464,6 +3547,50 @@ def firmware_s3_api_errors(
         package_text = package_path.read_text(encoding="utf-8")
         if "api_navigate" not in package_text or "api_navigate.yaml" not in package_text:
             errors.append(f"{package_rel}: include the dedicated Home Assistant navigate API package")
+    return errors
+
+
+def firmware_open_modal_api_errors(root: Path, package_paths: tuple[Path, ...]) -> list[str]:
+    errors: list[str] = []
+    api_path = root / "common/device/api_open_modal.yaml"
+    scripts_path = root / "common/device/api_remote_actions.yaml"
+    if not api_path.exists():
+        return ["common/device/api_open_modal.yaml: missing entity modal API action"]
+    if not scripts_path.exists():
+        return ["common/device/api_remote_actions.yaml: missing shared remote action scripts"]
+    api_text = api_path.read_text(encoding="utf-8")
+    scripts_text = scripts_path.read_text(encoding="utf-8")
+    modal_script_start = scripts_text.find("  - id: open_entity_modal")
+    modal_script_end = scripts_text.find("  - id: open_remote_subpage", modal_script_start)
+    modal_script = scripts_text[modal_script_start:modal_script_end if modal_script_end >= 0 else None]
+    api_required = ("action: open_modal", "entity_id: string", "id: open_entity_modal")
+    script_required = ("mode: restart", "espcontrol_can_open_modal(entity_id,",
+                      "script.execute: screensaver_wake", "script.wait: screensaver_wake",
+                      "espcontrol_open_modal(entity_id,", "script.execute: screensaver_idle_check",
+                      "script.execute: home_screen_idle_check")
+    api_positions = [api_text.find(value) for value in api_required]
+    script_positions = [modal_script.find(value) for value in script_required]
+    if (modal_script_start < 0 or -1 in api_positions or api_positions != sorted(api_positions)
+            or -1 in script_positions or script_positions != sorted(script_positions)
+            or modal_script.count("grid_phase2_complete()") < 2):
+        errors.append("common/device/api_open_modal.yaml: validate, wake, revalidate, open, then reset idle timers")
+    for path in package_paths:
+        has_modal = package_api_open_modal_enabled(path, root)
+        has_navigate = package_api_navigate_enabled(path, root)
+        package_text = path.read_text(encoding="utf-8") if path.exists() else ""
+        if not has_modal and "api_open_modal.yaml" in package_text:
+            errors.append(f"{path.relative_to(root)}: omit the entity modal action when disabled")
+        if not has_navigate and "api_navigate.yaml" in package_text:
+            errors.append(f"{path.relative_to(root)}: omit the navigate action when disabled")
+        has_remote_scripts = "api_remote_actions.yaml" in package_text
+        if (has_modal or has_navigate) and not has_remote_scripts:
+            errors.append(f"{path.relative_to(root)}: include shared remote scripts when either API action is enabled")
+        if not (has_modal or has_navigate) and has_remote_scripts:
+            errors.append(f"{path.relative_to(root)}: omit shared remote scripts when both API actions are disabled")
+        if not has_modal:
+            continue
+        if "api_open_modal.yaml" not in package_text:
+            errors.append(f"{path.relative_to(root)}: include the entity modal action on P4 and S3")
     return errors
 
 
@@ -3487,16 +3614,12 @@ def firmware_navigation_target_errors(
         errors.append(f"{navigation_rel}: register general home-screen navigation targets")
     if "navigation_find_label_target" not in navigation_text or "navigation_home_targets()" not in navigation_text:
         errors.append(f"{navigation_rel}: resolve navigate labels against home-screen cards")
-    if "navigation_has_home_label_target" not in navigation_text:
-        errors.append(f"{navigation_rel}: let configured card labels take priority over voice aliases")
     if "entry.display_order < best->display_order" not in navigation_text:
         errors.append(f"{navigation_rel}: choose the first displayed card when labels are duplicated")
     if "navigation_find_slot_target" not in navigation_text or "entry.slot == slot" not in navigation_text:
         errors.append(f"{navigation_rel}: resolve slot:n against home-screen card slots")
     if "navigation_return_home(main_page_obj)" not in navigation_text or "handle_button_click(target->config, target->slot, target->button)" not in navigation_text:
         errors.append(f"{navigation_rel}: activate navigated home-screen cards through the normal tap handler")
-    if "navigation_is_voice_target" not in navigation_text or '"device_volume"' not in navigation_text:
-        errors.append(f"{navigation_rel}: reserve voice volume navigation aliases")
     if "normalized == \"home\" || normalized == \"main\"" not in navigation_text:
         errors.append(f"{navigation_rel}: preserve home/main navigation targets")
 
@@ -3523,35 +3646,15 @@ def firmware_navigation_target_errors(
             errors.append(f"{navigation_driver_rel}: preserve subpage navigation registration")
 
     if not api_navigate_path.exists():
-        errors.append("common/device/api_navigate.yaml: route voice aliases through the navigate action")
+        errors.append("common/device/api_navigate.yaml: route navigation targets through the navigate action")
     else:
         api_rel = api_navigate_path.relative_to(root)
         api_text = api_navigate_path.read_text(encoding="utf-8")
-        if "navigation_is_voice_target(target)" not in api_text or "${navigate_voice_target_code}" not in api_text:
-            errors.append(f"{api_rel}: route reserved voice targets through the device-specific voice hook")
-        if "!navigation_has_home_label_target(target)" not in api_text:
-            errors.append(f"{api_rel}: resolve configured card labels before reserved voice aliases")
+        shared_actions_path = root / "common/device/api_remote_actions.yaml"
+        if shared_actions_path.exists():
+            api_text += "\n" + shared_actions_path.read_text(encoding="utf-8")
         if "espcontrol_navigate(target, id(main_page)->obj);" not in api_text:
-            errors.append(f"{api_rel}: keep normal navigate targets routed through espcontrol_navigate")
-
-    voice_package_found = False
-    for package_path in package_paths:
-        if not package_path.exists():
-            continue
-        package_rel = package_path.relative_to(root)
-        package_text = package_path.read_text(encoding="utf-8")
-        if "navigate_voice_target_code" not in package_text:
-            errors.append(f"{package_rel}: define a voice-target navigate hook")
-        if package_local_voice_services_enabled(package_path, root):
-            voice_package_found = True
-            if "id(open_device_volume_control).execute();" not in package_text:
-                errors.append(f"{package_rel}: open the local voice volume modal for voice navigation aliases")
-            if "id(voice_services_enabled).state" not in package_text:
-                errors.append(f"{package_rel}: only open the voice volume modal when Voice Services are enabled")
-        elif "open_device_volume_control" in package_text:
-            errors.append(f"{package_rel}: keep the voice volume modal hook limited to local voice service packages")
-    if not voice_package_found:
-        errors.append("devices/manifest.json: define a voice volume navigate hook for a local voice service package")
+            errors.append(f"{api_rel}: route navigation targets through espcontrol_navigate")
     return errors
 
 
@@ -3704,6 +3807,74 @@ def firmware_c6_update_status_errors(path: Path, root: Path) -> list[str]:
     return errors
 
 
+def firmware_camera_screensaver_retained_token_errors(
+    path: Path, root: Path
+) -> list[str]:
+    if not path.exists():
+        return []
+    text = path.read_text(encoding="utf-8")
+    retained_token_subscription = re.search(
+        r'ha_subscribe_attribute\(\s*entity,\s*std::string\("access_token"\),'
+        r'.*?HA_SUBSCRIPTION_SCOPE_DEFAULT\s*,\s*true\s*\);',
+        text,
+        re.DOTALL,
+    )
+    rel = path.relative_to(root)
+    errors: list[str] = []
+    if not retained_token_subscription:
+        errors.append(
+            f"{rel}: retain the camera screensaver access-token subscription "
+            "so retained Home Assistant reads can complete"
+        )
+    if "ha_reannounce_state_subscriptions();" not in text:
+        errors.append(
+            f"{rel}: re-announce the late camera screensaver subscription "
+            "so Home Assistant publishes its current token immediately"
+        )
+    if 'espcontrol_i18n_key("unavailable")' not in text:
+        errors.append(
+            f"{rel}: translate the camera screensaver unavailable label"
+        )
+    if (
+        "HaCallbackOwnerScope camera_subscription_owner(camera_owner);" not in text
+        or "ha_release_callbacks_for_owner(camera_owner);" not in text
+        or "ha_release_callbacks_for_owner(&id(camera_screensaver_subscribed_entity));" not in text
+        or not re.search(
+            r'ha_read_retained_attribute\(\s*entity,\s*std::string\("access_token"\),'
+            r'.*?\}\)\s*,\s*camera_owner\s*\);',
+            text,
+            re.DOTALL,
+        )
+    ):
+        errors.append(
+            f"{rel}: own and release camera screensaver callbacks when the entity changes"
+        )
+    if "id(camera_screensaver_downloaded_image)->cancel_update();" not in text:
+        errors.append(
+            f"{rel}: cancel stale camera screensaver downloads when the entity changes"
+        )
+    if (
+        "lv_image_set_src(id(camera_screensaver_image)" not in text
+        or not re.search(
+            r"lvgl\.image\.update:\s*\n\s*id:\s*camera_screensaver_image\s*\n"
+            r"\s*src:\s*camera_screensaver_downloaded_image",
+            text,
+        )
+    ):
+        errors.append(
+            f"{rel}: rebind the downloaded camera buffer to the LVGL image widget"
+        )
+    if (
+        'id(screensaver_camera_image_mode).current_option() == "Fill"' not in text
+        or "ImageResizeMode::COVER" not in text
+        or "ImageResizeMode::FIT" not in text
+    ):
+        errors.append(
+            f"{rel}: map the camera Fit and Fill options to artwork resize modes"
+        )
+    return errors
+
+
 def run_scan() -> int:
     errors = firmware_ha_binding_errors(FIRMWARE_DIR, ROOT)
     errors.extend(firmware_display_controller_ownership_errors(DISPLAY_LIFECYCLE_ROOTS, ROOT))
@@ -3727,6 +3898,11 @@ def run_scan() -> int:
     errors.extend(firmware_cover_art_refresh_errors(COVER_ART_PATH, ROOT))
     errors.extend(firmware_cover_art_playback_grace_errors(COVER_ART_PATH, ROOT))
     errors.extend(firmware_cover_art_disable_errors(COVER_ART_PATH, ROOT))
+    errors.extend(
+        firmware_camera_screensaver_retained_token_errors(
+            CAMERA_SCREENSAVER_PATH, ROOT
+        )
+    )
     errors.extend(firmware_cover_art_lifecycle_controller_errors(BACKLIGHT_PATH, COVER_ART_PATH, ROOT))
     errors.extend(firmware_media_sleep_prevention_errors(BACKLIGHT_PATH, DISPLAY_CONFIG_PATH, COVER_ART_PATH, ROOT))
     errors.extend(firmware_touch_cover_art_delay_errors(DEVICE_TOUCH_PATHS, ROOT))
@@ -3761,6 +3937,11 @@ def run_scan() -> int:
     )
     errors.extend(firmware_clock_bar_pending_wake_errors(DISPLAY_CONFIG_PATH, ROOT))
     errors.extend(firmware_clock_bar_navigation_errors(CONNECTIVITY_PATHS, ROOT))
+    errors.extend(
+        firmware_display_active_finalization_errors(
+            BACKLIGHT_PATH, BACKLIGHT_SCHEDULE_PATH, CONNECTIVITY_PATHS, ROOT
+        )
+    )
     errors.extend(firmware_clock_screensaver_overlay_errors(BACKLIGHT_PATH, ROOT))
     errors.extend(firmware_screen_schedule_screensaver_overlay_errors(COVER_ART_PATH, ROOT))
     errors.extend(firmware_screen_schedule_screensaver_override_errors(BACKLIGHT_PATH, ROOT))
@@ -3785,6 +3966,7 @@ def run_scan() -> int:
             ROOT,
         )
     )
+    errors.extend(firmware_open_modal_api_errors(ROOT, DEVICE_PACKAGE_PATHS))
     errors.extend(firmware_navigation_target_errors(FIRMWARE_DIR, API_NAVIGATE_PATH, DEVICE_PACKAGE_PATHS, ROOT))
     errors.extend(firmware_connectivity_api_errors(CONNECTIVITY_PATHS, ROOT))
     errors.extend(
@@ -4530,6 +4712,32 @@ def expect_clock_bar_navigation_errors(
             assert not errors, f"{name}: expected no errors, got {errors!r}"
 
 
+def expect_display_active_finalization_errors(
+    name: str,
+    backlight_text: str,
+    schedule_text: str,
+    connectivity_text: str,
+    expected: tuple[str, ...],
+) -> None:
+    with TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        addon_dir = root / "common" / "addon"
+        addon_dir.mkdir(parents=True)
+        backlight_path = addon_dir / "backlight.yaml"
+        schedule_path = addon_dir / "backlight_schedule.yaml"
+        connectivity_path = addon_dir / "connectivity.yaml"
+        backlight_path.write_text(backlight_text, encoding="utf-8")
+        schedule_path.write_text(schedule_text, encoding="utf-8")
+        connectivity_path.write_text(connectivity_text, encoding="utf-8")
+        errors = firmware_display_active_finalization_errors(
+            backlight_path, schedule_path, (connectivity_path,), root
+        )
+        for item in expected:
+            assert any(item in error for error in errors), f"{name}: missing {item!r} in {errors!r}"
+        if not expected:
+            assert not errors, f"{name}: expected no errors, got {errors!r}"
+
+
 def expect_clock_screensaver_overlay_errors(name: str, text: str, expected: tuple[str, ...]) -> None:
     with TemporaryDirectory() as tmp:
         root = Path(tmp)
@@ -4738,6 +4946,22 @@ def expect_c6_update_status_errors(name: str, text: str, expected: tuple[str, ..
             assert not errors, f"{name}: expected no errors, got {errors!r}"
 
 
+def expect_camera_screensaver_retained_token_errors(
+    name: str, text: str, expected: tuple[str, ...]
+) -> None:
+    with TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        path = root / "common" / "device" / "screen_camera_screensaver.yaml"
+        path.parent.mkdir(parents=True)
+        path.write_text(text, encoding="utf-8")
+
+        errors = firmware_camera_screensaver_retained_token_errors(path, root)
+        for item in expected:
+            assert any(item in error for error in errors), f"{name}: missing {item!r} in {errors!r}"
+        if not expected:
+            assert not errors, f"{name}: expected no errors, got {errors!r}"
+
+
 def run_self_test() -> int:
     for call in (
         "api->get_home_assistant_state(entity, callback);",
@@ -4799,6 +5023,76 @@ def run_self_test() -> int:
             "keep Option Select available while clearing an unknown current option",
             "clear stale Option Select modal selection styling",
         ),
+    )
+    valid_camera_screensaver = (
+        'text: !lambda \'return std::string(espcontrol_i18n_key("unavailable"));\'\n'
+        'ha_release_callbacks_for_owner(&id(camera_screensaver_subscribed_entity));\n'
+        'id(camera_screensaver_downloaded_image)->cancel_update();\n'
+        'void *const camera_owner = &id(camera_screensaver_subscribed_entity);\n'
+        'ha_release_callbacks_for_owner(camera_owner);\n'
+        'HaCallbackOwnerScope camera_subscription_owner(camera_owner);\n'
+        'ha_subscribe_attribute(entity, std::string("access_token"), callback,\n'
+        '  HA_SUBSCRIPTION_SCOPE_DEFAULT, true);\n'
+        'ha_reannounce_state_subscriptions();\n'
+        'ha_read_retained_attribute(entity, std::string("access_token"),\n'
+        '  std::function<void(esphome::StringRef)>([](esphome::StringRef) {}), camera_owner);\n'
+        'lv_image_set_src(id(camera_screensaver_image), static_cast<const void *>(nullptr));\n'
+        'lvgl.image.update:\n'
+        '  id: camera_screensaver_image\n'
+        '  src: camera_screensaver_downloaded_image\n'
+        'id(screensaver_camera_image_mode).current_option() == "Fill"\n'
+        'esphome::artwork_image::ImageResizeMode::COVER\n'
+        'esphome::artwork_image::ImageResizeMode::FIT\n'
+    )
+    expect_camera_screensaver_retained_token_errors(
+        "camera token subscription is not retained",
+        valid_camera_screensaver.replace(
+            ',\n  HA_SUBSCRIPTION_SCOPE_DEFAULT, true);', ');'
+        ),
+        ("retain the camera screensaver access-token subscription",),
+    )
+    expect_camera_screensaver_retained_token_errors(
+        "camera token subscription is retained",
+        valid_camera_screensaver,
+        (),
+    )
+    expect_camera_screensaver_retained_token_errors(
+        "late camera token subscription is not announced",
+        valid_camera_screensaver.replace('ha_reannounce_state_subscriptions();\n', ''),
+        ("re-announce the late camera screensaver subscription",),
+    )
+    expect_camera_screensaver_retained_token_errors(
+        "camera unavailable label is not translated",
+        valid_camera_screensaver.replace('espcontrol_i18n_key("unavailable")', '"Unavailable"'),
+        ("translate the camera screensaver unavailable label",),
+    )
+    expect_camera_screensaver_retained_token_errors(
+        "camera subscriptions are not owned",
+        valid_camera_screensaver.replace(
+            'HaCallbackOwnerScope camera_subscription_owner(camera_owner);\n', ''
+        ),
+        ("own and release camera screensaver callbacks",),
+    )
+    expect_camera_screensaver_retained_token_errors(
+        "stale camera download is not cancelled",
+        valid_camera_screensaver.replace(
+            'id(camera_screensaver_downloaded_image)->cancel_update();\n', ''
+        ),
+        ("cancel stale camera screensaver downloads",),
+    )
+    expect_camera_screensaver_retained_token_errors(
+        "downloaded camera image is not rebound",
+        valid_camera_screensaver.replace(
+            'lv_image_set_src(id(camera_screensaver_image), static_cast<const void *>(nullptr));\n', ''
+        ),
+        ("rebind the downloaded camera buffer",),
+    )
+    expect_camera_screensaver_retained_token_errors(
+        "camera image display modes are not mapped",
+        valid_camera_screensaver.replace(
+            'esphome::artwork_image::ImageResizeMode::COVER\n', ''
+        ),
+        ("map the camera Fit and Fill options",),
     )
     expect_media_cover_art_external_input_errors(
         "missing media cover art external-input handling",
@@ -7177,6 +7471,111 @@ def run_self_test() -> int:
         "",
         ("clear the shared wake guard after a stuck touch timeout",),
     )
+    valid_active_finalizer = (
+        "script:\n"
+        "  - id: display_mode_apply_transition\n"
+        "    then:\n"
+        "      - lambda: 'controller.complete_transition();'\n"
+        "      - script.execute: display_active_finalize\n"
+        "  - id: display_active_finalize\n"
+        "    then:\n"
+        "      - delay: 50ms\n"
+        "      - if:\n"
+        "          condition:\n"
+        "            lambda: 'return id(espcontrol_app).display().target_mode_is(espcontrol::DisplayMode::ACTIVE);'\n"
+        "          then:\n"
+        "            - if:\n"
+        "                condition:\n"
+        "                  lambda: 'return lv_scr_act() == id(main_page)->obj;'\n"
+        "                then:\n"
+        "                  - script.execute: clock_bar_apply\n"
+        "                  - script.wait: clock_bar_apply\n"
+        "                  - script.execute: backlight_apply_brightness\n"
+        "                  - script.wait: backlight_apply_brightness\n"
+        "            - script.execute: screensaver_idle_check\n"
+        "            - script.execute: home_screen_idle_check\n"
+    )
+    valid_schedule_wake = (
+        "script:\n"
+        "  - id: screen_schedule_wake\n"
+        "    then:\n"
+        "      - script.execute: display_mode_reconcile\n"
+        "      - script.wait: display_mode_apply_transition\n"
+        "      - script.execute: display_active_finalize\n"
+    )
+    valid_active_navigation = (
+        "script:\n"
+        "  - id: navigate_after_api\n"
+        "    then:\n"
+        "      - lvgl.page.show: main_page\n"
+        "      - script.execute: display_active_finalize\n"
+    )
+    expect_display_active_finalization_errors(
+        "active display finalization remains complete",
+        valid_active_finalizer,
+        valid_schedule_wake,
+        valid_active_navigation,
+        (),
+    )
+    expect_display_active_finalization_errors(
+        "active-state check precedes the page-specific guard",
+        valid_active_finalizer.replace(
+            "return id(espcontrol_app).display().target_mode_is(espcontrol::DisplayMode::ACTIVE);",
+            "return lv_scr_act() == id(main_page)->obj && "
+            "id(espcontrol_app).display().target_mode_is(espcontrol::DisplayMode::ACTIVE);",
+        ),
+        valid_schedule_wake,
+        valid_active_navigation,
+        ("finalize active display",),
+    )
+    expect_display_active_finalization_errors(
+        "scheduled wake waits for its display transition",
+        valid_active_finalizer,
+        valid_schedule_wake.replace(
+            "      - script.wait: display_mode_apply_transition\n", "", 1
+        ),
+        valid_active_navigation,
+        ("wait for scheduled wake transition",),
+    )
+    expect_display_active_finalization_errors(
+        "automatic scheduled wake preserves manual sleep",
+        valid_active_finalizer,
+        valid_schedule_wake.replace(
+            "    then:\n",
+            "    then:\n"
+            "      - lambda: 'id(espcontrol_app).display().clear(espcontrol::DisplayRequestSource::MANUAL_SLEEP);'\n",
+            1,
+        ),
+        valid_active_navigation,
+        ("preserve manual sleep",),
+    )
+    expect_display_active_finalization_errors(
+        "completed active transitions restart idle handling",
+        valid_active_finalizer.replace(
+            "      - script.execute: display_active_finalize\n", "", 1
+        ),
+        valid_schedule_wake,
+        valid_active_navigation,
+        ("finalize every completed active transition",),
+    )
+    expect_display_active_finalization_errors(
+        "active finalizer restores configured brightness",
+        valid_active_finalizer.replace(
+            "            - script.execute: backlight_apply_brightness\n", "", 1
+        ),
+        valid_schedule_wake,
+        valid_active_navigation,
+        ("configured brightness",),
+    )
+    expect_display_active_finalization_errors(
+        "main-page navigation uses the active finalizer",
+        valid_active_finalizer,
+        valid_schedule_wake,
+        valid_active_navigation.replace(
+            "      - script.execute: display_active_finalize\n", "", 1
+        ),
+        ("after main-page navigation",),
+    )
     expect_clock_bar_navigation_errors(
         "late navigation requires active display mode",
         "script:\n"
@@ -7596,8 +7995,13 @@ def run_self_test() -> int:
     expect_s3_api_errors(
         "S3 includes navigate API package",
         "api:\n  max_connections: 3\n  max_send_queue: 12\n",
-        ("omit the Home Assistant navigate API action on S3",),
+        (),
         s3_packages_text="packages:\n  api_navigate: !include ../../common/device/api_navigate.yaml\n",
+    )
+    expect_s3_api_errors(
+        "S3 missing navigate API package",
+        "api:\n  max_connections: 3\n  max_send_queue: 12\n",
+        ("include the Home Assistant navigate API action on S3",),
     )
     expect_s3_api_errors(
         "navigate action left in shared core",
@@ -7617,8 +8021,6 @@ def run_self_test() -> int:
         "inline auto navigation_home_targets() {}\n"
         "inline void navigation_find_label_target() { navigation_home_targets(); entry.display_order < best->display_order; }\n"
         "inline void navigation_find_slot_target() { entry.slot == slot; }\n"
-        "inline bool navigation_is_voice_target() { return normalized == \"device_volume\"; }\n"
-        "inline bool navigation_has_home_label_target() {}\n"
         "inline void navigation_activate_home_target() { navigation_return_home(main_page_obj); handle_button_click(target->config, target->slot, target->button); }\n"
         "inline void espcontrol_navigate() { normalized == \"home\" || normalized == \"main\"; }\n",
         "navigation_clear_home_targets();\n"
@@ -7626,13 +8028,9 @@ def run_self_test() -> int:
         "navigation_clear_home_targets();\n"
         "navigation_register_home_target(idx, pos, p.label, s.config->state, s.btn);\n",
         "inline bool navigation_driver_own_subpage() { navigation_register_subpage( }\n",
-        "if (navigation_is_voice_target(target) && !navigation_has_home_label_target(target)) { ${navigate_voice_target_code} } else { espcontrol_navigate(target, id(main_page)->obj); }\n",
-        {
-            "esp32-p4-86": "navigate_voice_target_code: |-\n  if (id(voice_services_enabled).state) { id(open_device_volume_control).execute(); }\n",
-            "future-voice-panel": "navigate_voice_target_code: |-\n  if (id(voice_services_enabled).state) { id(open_device_volume_control).execute(); }\n",
-            "other-p4": "navigate_voice_target_code: |-\n  ESP_LOGW(\"navigation\", \"Voice volume target is not available on this device\");\n",
-        },
-        ("esp32-p4-86", "future-voice-panel"),
+        "espcontrol_navigate(target, id(main_page)->obj);\n",
+        {},
+        (),
         (),
     )
     expect_connectivity_api_errors(
@@ -7716,6 +8114,71 @@ def run_self_test() -> int:
         "      - lvgl.page.show: ha_setup_page\n",
         ("keep the current display visible",),
     )
+    with TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        api = root / "common/device/api_open_modal.yaml"
+        api.parent.mkdir(parents=True)
+        original = (ROOT / "common/device/api_open_modal.yaml").read_text()
+        scripts = root / "common/device/api_remote_actions.yaml"
+        scripts.write_text((ROOT / "common/device/api_remote_actions.yaml").read_text())
+        package = root / "packages.yaml"
+        package.write_text(
+            "packages:\n"
+            "  api_remote_actions: !include common/device/api_remote_actions.yaml\n"
+            "  api_open_modal: !include common/device/api_open_modal.yaml\n"
+        )
+        api.write_text(original)
+        assert not firmware_open_modal_api_errors(root, (package,))
+        for token in ("mode: restart", "espcontrol_can_open_modal", "script.wait: screensaver_wake",
+                      "espcontrol_open_modal", "script.execute: home_screen_idle_check"):
+            source_path = api if token in original else scripts
+            source_text = original if source_path == api else scripts.read_text(encoding="utf-8")
+            source_path.write_text(source_text.replace(token, "removed"))
+            assert firmware_open_modal_api_errors(root, (package,)), token
+            source_path.write_text(source_text)
+        manifest = root / "devices/manifest.json"
+        manifest.parent.mkdir(parents=True)
+        manifest.write_text(
+            json.dumps({"devices": {"constrained": {"firmware": {"package": {"apiOpenModalAction": False}}}}}),
+            encoding="utf-8",
+        )
+        disabled_package = root / "devices/constrained/packages.yaml"
+        disabled_package.parent.mkdir(parents=True)
+        disabled_package.write_text("packages: {}\n", encoding="utf-8")
+        # Navigation remains independently enabled, so its package includes the
+        # shared scripts while omitting the modal API package.
+        manifest.write_text(
+            json.dumps({"devices": {"constrained": {"firmware": {"package": {
+                "apiOpenModalAction": False, "apiNavigateAction": True
+            }}}}}),
+            encoding="utf-8",
+        )
+        disabled_package.write_text(
+            "packages:\n"
+            "  api_remote_actions: !include common/device/api_remote_actions.yaml\n"
+            "  api_navigate: !include common/device/api_navigate.yaml\n",
+            encoding="utf-8",
+        )
+        assert not firmware_open_modal_api_errors(root, (disabled_package,))
+        # The inverse selection keeps the modal actions and shared scripts but
+        # omits navigation.
+        manifest.write_text(
+            json.dumps({"devices": {"constrained": {"firmware": {"package": {
+                "apiOpenModalAction": True, "apiNavigateAction": False
+            }}}}}),
+            encoding="utf-8",
+        )
+        disabled_package.write_text(
+            "packages:\n"
+            "  api_remote_actions: !include common/device/api_remote_actions.yaml\n"
+            "  api_open_modal: !include common/device/api_open_modal.yaml\n",
+            encoding="utf-8",
+        )
+        assert not firmware_open_modal_api_errors(root, (disabled_package,))
+        package.write_text("packages: {}\n")
+        assert firmware_open_modal_api_errors(root, (package,))
+        api.unlink()
+        assert firmware_open_modal_api_errors(root, (package,))
     print("Firmware Home Assistant binding self-tests passed.")
     return 0
 

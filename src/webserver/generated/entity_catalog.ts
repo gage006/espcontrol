@@ -124,65 +124,6 @@ export const ENTITY_CATALOG = {
       "domain": "sensor",
       "name": "Battery"
     },
-    "voice_services": {
-      "domain": "switch",
-      "name": "Voice Services",
-      "objectIds": [
-        "voice_services",
-        "voice_services_enabled"
-      ]
-    },
-    "alarm_delay_audio": {
-      "domain": "switch",
-      "name": "Alarm Delay: Audio",
-      "objectIds": [
-        "alarm_delay__audio",
-        "alarm_delay_audio",
-        "alarm_delay_audio_enabled"
-      ]
-    },
-    "alarm_delay_tts": {
-      "domain": "switch",
-      "name": "Alarm Delay: TTS",
-      "objectIds": [
-        "alarm_delay__tts",
-        "alarm_delay_tts",
-        "alarm_delay_tts_enabled"
-      ]
-    },
-    "alarm_delay_entry_announcement": {
-      "domain": "text",
-      "name": "Alarm Delay: Entry Announcement",
-      "objectIds": [
-        "alarm_delay__entry_announcement",
-        "alarm_delay_entry_announcement"
-      ]
-    },
-    "alarm_delay_exit_announcement": {
-      "domain": "text",
-      "name": "Alarm Delay: Exit Announcement",
-      "objectIds": [
-        "alarm_delay__exit_announcement",
-        "alarm_delay_exit_announcement"
-      ]
-    },
-    "alarm_delay_beep_volume": {
-      "domain": "number",
-      "name": "Alarm Delay: Beep Volume",
-      "objectIds": [
-        "alarm_delay__beep_volume",
-        "alarm_delay_beep_volume"
-      ]
-    },
-    "alarm_delay_final_countdown": {
-      "domain": "number",
-      "name": "Alarm Delay: Final Countdown",
-      "objectIds": [
-        "alarm_delay__final_countdown",
-        "alarm_delay_final_countdown",
-        "alarm_delay_final_countdown_seconds"
-      ]
-    },
     "screen_temperature_degree_symbol": {
       "domain": "switch",
       "name": "Screen: Temperature Degree Symbol",
@@ -229,6 +170,42 @@ export const ENTITY_CATALOG = {
         "screensaver_action"
       ]
     },
+    "screen_saver_camera_entity": {
+      "domain": "text",
+      "name": "Screen Saver: Camera Entity",
+      "objectIds": [
+        "screen_saver__camera_entity",
+        "screen_saver_camera_entity",
+        "screensaver_camera_entity"
+      ]
+    },
+    "screen_saver_metadata_entity": {
+      "domain": "text",
+      "name": "Screen Saver: Photo Metadata Entity",
+      "objectIds": [
+        "screen_saver__photo_metadata_entity",
+        "screen_saver_photo_metadata_entity",
+        "screensaver_metadata_entity"
+      ]
+    },
+    "screen_saver_metadata_overlay": {
+      "domain": "switch",
+      "name": "Screen Saver: Metadata Overlay",
+      "objectIds": [
+        "screen_saver__metadata_overlay",
+        "screen_saver_metadata_overlay",
+        "metadata_overlay_enabled"
+      ]
+    },
+    "screen_saver_camera_image_mode": {
+      "domain": "select",
+      "name": "Screen Saver: Camera Image Mode",
+      "objectIds": [
+        "screen_saver__camera_image_mode",
+        "screen_saver_camera_image_mode",
+        "screensaver_camera_image_mode"
+      ]
+    },
     "presence_sensor_entity": {
       "domain": "text",
       "name": "Presence Sensor Entity",
@@ -241,6 +218,15 @@ export const ENTITY_CATALOG = {
       "name": "Screen Schedule Sensor Entity",
       "objectIds": [
         "screen_schedule_sensor_entity"
+      ]
+    },
+    "screen_saver_cover_art_playback_control": {
+      "domain": "switch",
+      "name": "Screen Saver: Cover Art Playback Control",
+      "objectIds": [
+        "screen_saver__cover_art_playback_control",
+        "screen_saver_cover_art_playback_control",
+        "cover_art_playback_control_enabled"
       ]
     },
     "screen_saver_media_player_sleep_prevention": {
@@ -339,6 +325,13 @@ export const ENTITY_CATALOG = {
         "home_assistant_artwork_endpoint_status"
       ]
     },
+    "home_assistant_artwork_endpoint_health": {
+      "domain": "text_sensor",
+      "name": "Home Assistant Artwork Connection Health",
+      "objectIds": [
+        "home_assistant_artwork_endpoint_health"
+      ]
+    },
     "home_assistant_artwork_protocol": {
       "domain": "select",
       "name": "Home Assistant Artwork Protocol",
@@ -352,6 +345,13 @@ export const ENTITY_CATALOG = {
       "name": "Home Assistant Artwork Port",
       "objectIds": [
         "home_assistant_artwork_port"
+      ]
+    },
+    "home_assistant_artwork_host": {
+      "domain": "text",
+      "name": "Home Assistant Artwork Host",
+      "objectIds": [
+        "home_assistant_artwork_host"
       ]
     },
     "screen_saver_daytime_clock_brightness": {
@@ -418,6 +418,15 @@ export const ENTITY_CATALOG = {
         "screen_saver__clock",
         "screen_saver_clock",
         "clock_screensaver_enabled"
+      ]
+    },
+    "screen_saver_clock_overlay": {
+      "domain": "switch",
+      "name": "Screen Saver: Clock Overlay",
+      "objectIds": [
+        "screen_saver__clock_overlay",
+        "screen_saver_clock_overlay",
+        "clock_overlay_enabled"
       ]
     },
     "screen_timezone": {
@@ -742,8 +751,13 @@ export const ENTITY_CATALOG = {
       "outdoor_temp_entity",
       "screensaver_mode",
       "screen_saver_action",
+      "screen_saver_camera_entity",
+      "screen_saver_metadata_entity",
+      "screen_saver_metadata_overlay",
+      "screen_saver_camera_image_mode",
       "presence_sensor_entity",
       "screen_schedule_sensor_entity",
+      "screen_saver_cover_art_playback_control",
       "screen_saver_media_player_sleep_prevention",
       "media_player_sleep_prevention_entity",
       "screen_saver_cover_art",
@@ -755,8 +769,10 @@ export const ENTITY_CATALOG = {
       "screen_saver_hide_cover_art_external_input",
       "home_assistant_artwork_endpoint_mode",
       "home_assistant_artwork_endpoint_status",
+      "home_assistant_artwork_endpoint_health",
       "home_assistant_artwork_protocol",
       "home_assistant_artwork_port",
+      "home_assistant_artwork_host",
       "screen_saver_daytime_clock_brightness",
       "screen_saver_nighttime_clock_brightness",
       "screen_saver_clock_brightness",
@@ -766,6 +782,7 @@ export const ENTITY_CATALOG = {
       "screensaver_timeout",
       "home_screen_timeout",
       "screen_saver_clock",
+      "screen_saver_clock_overlay",
       "screen_timezone",
       "screen_active_timezone",
       "screen_language",
@@ -810,17 +827,6 @@ export const ENTITY_CATALOG = {
     "settings_battery": [
       "screen_battery_status",
       "battery_percent"
-    ],
-    "settings_voice": [
-      "voice_services"
-    ],
-    "settings_alarm_audio": [
-      "alarm_delay_audio",
-      "alarm_delay_tts",
-      "alarm_delay_entry_announcement",
-      "alarm_delay_exit_announcement",
-      "alarm_delay_beep_volume",
-      "alarm_delay_final_countdown"
     ],
     "settings_optional": [
       "screen_rotation"

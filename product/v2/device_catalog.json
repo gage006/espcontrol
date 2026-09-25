@@ -8,6 +8,9 @@
         "firmware": {
           "build": {
             "chip": "ESP32-P4"
+          },
+          "package": {
+            "apiOpenModalAction": true
           }
         }
       },
@@ -15,6 +18,9 @@
         "firmware": {
           "build": {
             "chip": "ESP32-S3"
+          },
+          "package": {
+            "apiOpenModalAction": true
           }
         }
       }
@@ -511,33 +517,11 @@
         }
       }
     },
-    "audio": {
-      "local-voice-services": {
-        "firmware": {
-          "package": {
-            "localVoiceServices": true,
-            "alarmDelayAudio": true,
-            "extraPackages": {
-              "voice_assistant": "!include device/voice_assistant.yaml"
-            }
-          }
-        }
-      }
-    },
     "input": {
       "touchscreen": {
         "firmware": {
           "package": {
             "touchscreenPackage": true
-          }
-        }
-      },
-      "physical-volume-buttons": {
-        "firmware": {
-          "package": {
-            "extraPackages": {
-              "physical_volume_button": "!include device/physical_volume_button${network_package_suffix}.yaml"
-            }
           }
         }
       }
@@ -566,6 +550,9 @@
       "overrides": {
         "firmware": {
           "package": {
+            "substitutions": {
+              "clock_font_size": "\"140\""
+            },
             "backlightPwmFrequency": {
               "wifi": "1000Hz",
               "ethernet": "20000Hz"
@@ -761,7 +748,7 @@
               "main_page_compact_pad_top": "\"5\"",
               "clock_bar_item_gap": "\"96\"",
               "clock_bar_visual_gap": "\"12\"",
-              "clock_font_size": "\"160\"",
+              "clock_font_size": "\"140\"",
               "clock_cx": "\"240\"",
               "clock_cy": "\"400\"",
               "screen_saver_clock_min_brightness": "\"1\"",
@@ -794,6 +781,15 @@
             }
           }
         }
+      },
+      "overrides": {
+        "firmware": {
+          "package": {
+            "substitutions": {
+              "clock_font_size": "\"160\""
+            }
+          }
+        }
       }
     },
     "guition-esp32-p4-jc8012p4a1-v2": {
@@ -809,6 +805,15 @@
         "public": {
           "name": "Guition JC8012P4A1 new panel (2628+)",
           "docsPath": "/screens/jc8012p4a1-v2"
+        }
+      },
+      "overrides": {
+        "firmware": {
+          "package": {
+            "substitutions": {
+              "clock_font_size": "\"200\""
+            }
+          }
         }
       }
     },
@@ -826,6 +831,15 @@
           "name": "Guition JC8012P4A1 V3 (production silicon)",
           "docsPath": "/screens/jc8012p4a1-v3"
         }
+      },
+      "overrides": {
+        "firmware": {
+          "package": {
+            "substitutions": {
+              "clock_font_size": "\"200\""
+            }
+          }
+        }
       }
     },
     "esp32-p4-86": {
@@ -838,10 +852,8 @@
           "network-coprocessor",
           "ethernet-selection"
         ],
-        "audio": "local-voice-services",
         "input": [
-          "touchscreen",
-          "physical-volume-buttons"
+          "touchscreen"
         ]
       },
       "config": {
@@ -992,18 +1004,13 @@
               "main_page_compact_pad_top": "\"6\"",
               "clock_bar_item_gap": "\"96\"",
               "clock_bar_visual_gap": "\"12\"",
-              "clock_font_size": "\"224\"",
+              "clock_font_size": "\"170\"",
               "clock_cx": "\"360\"",
               "clock_cy": "\"360\"",
               "screen_saver_clock_min_brightness": "\"1\"",
               "screen_saver_clock_default_brightness": "\"35\"",
               "screen_schedule_clock_min_brightness": "\"1\"",
-              "screen_schedule_clock_default_brightness": "\"10\"",
-              "voice_wake_chime_file": "\"https://raw.githubusercontent.com/jtenniswood/espcontrol/main/devices/esp32-p4-86/device/voice_wake_chime.flac\"",
-              "voice_timer_alert_file": "\"https://raw.githubusercontent.com/jtenniswood/espcontrol/main/devices/esp32-p4-86/device/voice_timer_alert.flac\"",
-              "voice_stt_failure_chime_file": "\"https://raw.githubusercontent.com/jtenniswood/espcontrol/main/devices/esp32-p4-86/device/voice_stt_failure_chime.flac\"",
-              "alarm_delay_entry_beep_file": "\"https://raw.githubusercontent.com/jtenniswood/espcontrol/30ea813b1e2d4008b019c30862dce478d238a697/devices/esp32-p4-86/device/alarm_delay_entry_beep.flac\"",
-              "alarm_delay_exit_beep_file": "\"https://raw.githubusercontent.com/jtenniswood/espcontrol/30ea813b1e2d4008b019c30862dce478d238a697/devices/esp32-p4-86/device/alarm_delay_exit_beep.flac\""
+              "screen_schedule_clock_default_brightness": "\"10\""
             }
           }
         }
@@ -1028,7 +1035,7 @@
       "config": {
         "slots": 9,
         "capabilities": {
-        "imageSlots": 2
+          "imageSlots": 2
         },
         "public": {
           "name": "Guition 4848S040",
@@ -1072,7 +1079,7 @@
           "dragMode": "displace",
           "dragAnimation": true,
           "disabledCardTypes": [
-          "weather_forecast"
+            "weather_forecast"
           ],
           "screen": {
             "width": "55%",
@@ -1187,7 +1194,7 @@
               "main_page_compact_pad_top": "\"4\"",
               "clock_bar_item_gap": "\"60\"",
               "clock_bar_visual_gap": "\"8\"",
-              "clock_font_size": "\"160\"",
+              "clock_font_size": "\"120\"",
               "clock_cx": "\"240\"",
               "clock_cy": "\"240\"",
               "screen_saver_clock_min_brightness": "\"1\"",
@@ -1195,7 +1202,7 @@
               "screen_schedule_clock_min_brightness": "\"1\"",
               "screen_schedule_clock_default_brightness": "\"10\""
             },
-            "apiNavigateAction": false
+            "apiNavigateAction": true
           }
         }
       }

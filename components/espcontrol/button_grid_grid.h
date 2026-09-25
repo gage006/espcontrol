@@ -54,7 +54,6 @@ struct GridConfig {
   std::string timezone;
   std::function<void(espcontrol::DisplayTakeoverKind)> begin_display_takeover;
   std::function<void(espcontrol::DisplayTakeoverKind)> end_display_takeover;
-  AlarmDelayAudioHooks alarm_delay_audio;
   esphome::artwork_image::ArtworkImage **image_card_images = nullptr;
   esphome::artwork_image::ArtworkImage *image_card_modal_image = nullptr;
   int image_card_image_count = 0;
@@ -74,6 +73,18 @@ inline void grid_log_memory(const char *stage) {
 #else
   (void) stage;
 #endif
+}
+
+// Remote modal requests must wait until the subscription/runtime phase has
+// finished. Phase 1 has already registered navigation targets, but the card
+// contexts and subpage runtimes are not safe to use until phase 2 completes.
+inline bool &grid_phase2_complete_state() {
+  static bool complete = false;
+  return complete;
+}
+
+inline bool grid_phase2_complete() {
+  return grid_phase2_complete_state();
 }
 
 inline DisplayProfile display_profile_from_grid_config(const GridConfig &cfg) {
@@ -1015,6 +1026,9 @@ inline void grid_phase1(
     const std::string &on_hex,
     lv_obj_t *main_page_obj = nullptr) {
   ESP_LOGI("sensors", "Phase 1: visual setup start (%lu ms)", esphome::millis());
+  grid_phase2_complete_state() = false;
+  // Remote controls may be open over a non-grid page when widgets are rebuilt.
+  navigation_hide_modals();
   set_backlight_display_takeover_callback(navigation_close_modals_for_display_takeover);
   set_display_temperature_unit(cfg.temperature_unit, cfg.timezone);
   const DisplayProfile display = display_profile_from_grid_config(cfg);
@@ -1232,6 +1246,7 @@ inline bool grid_refresh_subpage_layouts(
         ESP_LOGW("sensors", "Subpage %d is missing card %d", si + 1, button_index);
         continue;
       }
+      card->display_order = gp;
       const int col = sp_order.has_back_token ? gp % COLS : (gp + 1) % COLS;
       const int row = sp_order.has_back_token ? gp / COLS : (gp + 1) / COLS;
       const int col_span = sp_order.col_span[button_index - 1] > 0
@@ -1362,12 +1377,6 @@ inline void grid_delete_transient_status_label_runtime_ptr(void *ptr) {
 inline void grid_delete_alarm_card_runtime_ptr(void *ptr) {
   AlarmCardCtx *ctx = static_cast<AlarmCardCtx *>(ptr);
   if (ctx != nullptr) {
-    bool owned_alarm_audio = alarm_delay_audio_coordinator().source == ctx;
-    alarm_delay_audio_unregister_context(ctx);
-    if (owned_alarm_audio) {
-      alarm_delay_audio_stop();
-      alarm_delay_audio_resume_context(ctx, /* exclude_same_entity= */ false);
-    }
     AlarmControlModalUi &control_ui = alarm_control_modal_ui();
     if (control_ui.active == ctx) alarm_control_hide_modal();
     AlarmPinModalUi &pin_ui = alarm_pin_modal_ui();
@@ -1483,6 +1492,8 @@ inline void grid_release_runtime_allocations(
     lv_obj_t *owner, void *preserve_primary = nullptr,
     void *preserve_secondary = nullptr) {
   if (owner == nullptr) return;
+  // Close before any context is freed, including an inactive subpage's owner.
+  navigation_hide_modals();
   std::vector<GridRuntimeAllocation> &allocations = grid_runtime_allocations();
   size_t write_index = 0;
   for (size_t read_index = 0; read_index < allocations.size(); read_index++) {
@@ -1954,7 +1965,12 @@ inline void grid_phase2(
              p.type.c_str());
   }
 
-  if (cfg.info_only) return;
+  if (cfg.info_only) {
+    // Info-only profiles still bind main-card runtimes in phase 2. They do not
+    // build subpages, but remote modal actions can safely use those runtimes.
+    grid_phase2_complete_state() = true;
+    return;
+  }
 
   // --- Subpage creation ---
   static lv_coord_t sp_col_dsc[MAX_GRID_SLOTS + 1];
@@ -2053,6 +2069,7 @@ inline void grid_phase2(
 
     lv_obj_add_event_cb(back_btn, [](lv_event_t *e) {
       lv_scr_load_anim((lv_obj_t *)lv_event_get_user_data(e), LV_SCR_LOAD_ANIM_NONE, 0, 0, false);
+      refresh_visible_image_cards();
     }, LV_EVENT_CLICKED, main_page_obj);
     screen_lock_register_controlled_button(back_btn);
     navigation_register_subpage_back_button(si + 1, back_slot);
@@ -2241,6 +2258,7 @@ inline void grid_phase2(
   }
   refresh_weather_forecast_cards();
   ha_log_subscription_diagnostics("grid-complete");
+  grid_phase2_complete_state() = true;
   grid_log_memory("end");
   ESP_LOGI("sensors", "Phase 2: done (%lu ms)", esphome::millis());
 }

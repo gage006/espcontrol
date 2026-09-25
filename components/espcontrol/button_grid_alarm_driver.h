@@ -1,5 +1,7 @@
 #pragma once
 
+#include "card_modal_target.h"
+
 // Shared lifecycle driver for Alarm cards. The specialised PIN entry,
 // arming countdown, critical display takeover, Home Assistant, and modal
 // helpers remain in button_grid_alarm.h; this driver owns the grid/subpage
@@ -59,7 +61,6 @@ struct AlarmDriverEnvironment {
   int width_compensation_percent = 100;
   std::function<void(espcontrol::DisplayTakeoverKind)> begin_display_takeover;
   std::function<void(espcontrol::DisplayTakeoverKind)> end_display_takeover;
-  AlarmDelayAudioHooks alarm_delay_audio;
   std::function<void(const std::string &)> add_parent_indicator;
 };
 
@@ -89,7 +90,6 @@ inline AlarmDriverEnvironment alarm_driver_environment(
     display_main_width_percent(display);
   environment.begin_display_takeover = grid_config.begin_display_takeover;
   environment.end_display_takeover = grid_config.end_display_takeover;
-  environment.alarm_delay_audio = grid_config.alarm_delay_audio;
   return environment;
 }
 
@@ -128,8 +128,6 @@ inline AlarmCardCtx *alarm_driver_bind_data(
       environment.text_color, environment.width_compensation_percent,
       false, environment.begin_display_takeover,
       environment.end_display_takeover));
-  alarm_delay_audio_register_context(alarm);
-  alarm->audio_hooks = environment.alarm_delay_audio;
   if (context.surface == Surface::SUBPAGE) {
     alarm->grid_page = environment.grid_page;
   }
@@ -176,6 +174,16 @@ inline bool alarm_driver_handle_main_click(
     ? static_cast<AlarmCardCtx *>(lv_obj_get_user_data(button)) : nullptr;
   if (alarm_card_context_valid(alarm)) alarm_card_open_page(alarm);
   return true;
+}
+
+// Explicit modal-only route; it must never activate the card's command path.
+inline ModalTarget alarm_driver_modal_target(
+    const Context &context, const ParsedCfg &config, lv_obj_t *button) {
+  if (!alarm_driver_matches(context)) return {};
+  auto *runtime = button
+    ? static_cast<AlarmCardCtx *>(lv_obj_get_user_data(button)) : nullptr;
+  return modal_target(runtime, config.entity, ControlModalKind::ALARM_CONTROL,
+                      alarm_control_can_open_modal(runtime), alarm_control_open_modal);
 }
 
 }  // namespace espcontrol::cards

@@ -31,6 +31,7 @@ VALID_MODAL_LAYOUT_FAMILIES = {
 VALID_MODAL_DENSITIES = {"compact", "comfortable", "spacious"}
 VALID_MODAL_MEMORY_TIERS = {"standard", "constrained"}
 IMAGE_CARD_PICKER_TYPES = ("image", "media_cover_art")
+CAMERA_SCREENSAVER_DEVICE_SLUGS = {"guition-esp32-s3-4848s040"}
 REQUIRED_FONT_ROLES = (
     "icon",
     "sensor",
@@ -81,6 +82,13 @@ COVER_ART_FONT_KEYS = (
 FONT_ID_RE = re.compile(r"^\s+id:\s+([A-Za-z0-9_]+)\s*$", re.MULTILINE)
 
 
+def camera_screensaver_supported(profile: dict[str, Any]) -> bool:
+    return (
+        profile["firmware"]["build"].get("chip") == "ESP32-P4"
+        or profile["slug"] in CAMERA_SCREENSAVER_DEVICE_SLUGS
+    )
+
+
 class DeviceProfileError(RuntimeError):
     pass
 
@@ -113,14 +121,13 @@ CANONICAL_PACKAGE_KEYS = (
     "substitutions",
     "deviceFontPackageKey",
     "touchscreenPackage",
-    "localVoiceServices",
-    "alarmDelayAudio",
     "networkCoprocessor",
     "esp32C6FirmwareUpdate",
     "ethernetSelectable",
     "extraPackages",
     "backlightPwmFrequency",
     "apiNavigateAction",
+    "apiOpenModalAction",
 )
 
 
@@ -661,9 +668,8 @@ def validate_package(slug: str, device: dict[str, Any], errors: list[str]) -> No
         "ethernetSelectable",
         "improvSerial",
         "touchscreenPackage",
-        "localVoiceServices",
-        "alarmDelayAudio",
         "apiNavigateAction",
+        "apiOpenModalAction",
         "esp32C6FirmwareUpdate",
     ):
         if key in package and not isinstance(package[key], bool):
@@ -884,14 +890,12 @@ def web_features(profile: dict[str, Any]) -> dict[str, Any]:
             features["screenRotationDisplayOffset"] = rotation["displayOffset"]
     if profile.get("internalRelays"):
         features["internalRelays"] = copy.deepcopy(profile["internalRelays"])
-    if package.get("localVoiceServices"):
-        features["voiceServices"] = True
     if "battery" in (package.get("extraPackages") or {}):
         features["battery"] = True
-    if package.get("alarmDelayAudio"):
-        features["alarmDelayAudio"] = True
     if package.get("subpageConfigChunks"):
         features["subpageConfigChunks"] = package["subpageConfigChunks"]
+    if camera_screensaver_supported(profile):
+        features["cameraScreensaver"] = True
     return features
 
 
@@ -955,6 +959,7 @@ def slot_device(profile: dict[str, Any]) -> dict[str, Any]:
         "display_mode": display.get("mode", "color"),
         "modal": copy.deepcopy(display["modal"]),
         "package": firmware.get("package"),
+        "camera_screensaver_supported": camera_screensaver_supported(profile),
     }
     if "portraitCols" in layout:
         slot["portrait_cols"] = layout["portraitCols"]
