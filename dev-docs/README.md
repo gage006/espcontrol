@@ -15,6 +15,7 @@ usage documentation lives in the root `README.md` and under `docs/`.
 - [Documentation Search and Answer Visibility](docs-discovery.md) - build checks,
   crawler hosting, Search Console ownership, and measurement.
 
+- [Fork Maintenance](fork-maintenance.md) - upstream syncs and fork-owned updates.
 - [Task Router](task-router.md) - choose the correct workflow for a change.
 - [Task Playbooks](playbooks/README.md) - exact edit, generation, stop, and
   verification steps.

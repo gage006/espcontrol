@@ -15,8 +15,9 @@ concurrency:
 
 jobs:
   device-matrix:
+    if: github.repository == 'jtenniswood/espcontrol' || github.event_name == 'workflow_dispatch'
     name: Prepare Device Matrix
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.matrix.outputs.matrix }}
     steps:
@@ -74,7 +75,7 @@ jobs:
   compile:
     name: Compile Firmware
     needs: device-matrix
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     steps:
       - name: Prepare self-hosted workspace
         run: |

@@ -39,7 +39,7 @@ jobs:
     if: >-
       github.event_name != 'workflow_run' ||
       github.event.workflow_run.conclusion == 'success'
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     steps:
       - name: Prepare self-hosted workspace
         run: rm -rf "${GITHUB_WORKSPACE}/.esphome" || sudo rm -rf "${GITHUB_WORKSPACE}/.esphome"
@@ -89,7 +89,7 @@ jobs:
           LEGACY_WEB_MANIFEST="${LEGACY_WEB_DIR}/web-assets.json"
           LEGACY_WEB_ARGS=()
           mkdir -p "${LEGACY_WEB_DIR}"
-          if curl -fsSL "https://jtenniswood.github.io/espcontrol/webserver/web-assets.json" \
+          if curl -fsSL "https://gage006.github.io/espcontrol/webserver/web-assets.json" \
             -o "${LEGACY_WEB_MANIFEST}"; then
             BUNDLE_PATH=$(jq -er '[.bundles[] | select(any(.firmwareVersions[]?; . != "dev"))][0].path' \
               "${LEGACY_WEB_MANIFEST}")
@@ -98,7 +98,7 @@ jobs:
               exit 1
             fi
             mkdir -p "docs/public/webserver/$(dirname "${BUNDLE_PATH}")"
-            curl -fsSL "https://jtenniswood.github.io/espcontrol/webserver/${BUNDLE_PATH}" \
+            curl -fsSL "https://gage006.github.io/espcontrol/webserver/${BUNDLE_PATH}" \
               -o "docs/public/webserver/${BUNDLE_PATH}"
             LEGACY_WEB_ARGS=(--legacy-web-manifest "${LEGACY_WEB_MANIFEST}")
           else
@@ -120,10 +120,12 @@ jobs:
 
   download-firmware:
     name: Download Firmware
+    outputs:
+      has-stable: ${{ steps.stable.outputs.has-stable }}
     if: >-
       github.event_name != 'workflow_run' ||
       github.event.workflow_run.conclusion == 'success'
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     steps:
       - name: Prepare self-hosted workspace
         run: rm -rf "${GITHUB_WORKSPACE}/.esphome" || sudo rm -rf "${GITHUB_WORKSPACE}/.esphome"
@@ -139,6 +141,7 @@ jobs:
           echo "DEVICE_SLUGS=${DEVICE_SLUGS}" >> "$GITHUB_ENV"
 
       - name: Download firmware from stable releases
+        id: stable
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -148,6 +151,7 @@ jobs:
             "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases?per_page=30")
           STABLE_RELEASES_JSON=$(printf '%s' "${RELEASES_JSON}" | jq -c '[.[] | select((.draft | not) and (.prerelease | not))][0:5]')
           RELEASE_COUNT=$(printf '%s' "${STABLE_RELEASES_JSON}" | jq 'length')
+          echo "has-stable=$([ "${RELEASE_COUNT}" -gt 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
 
           if [ "${RELEASE_COUNT}" -eq 0 ]; then
             echo "::warning::No stable firmware releases found"
@@ -295,6 +299,7 @@ jobs:
           fi
 
       - name: Verify firmware assets
+        if: steps.stable.outputs.has-stable == 'true'
         run: |
           MISSING=false
           OPTIONAL_FIRMWARE_SLUGS="guition-esp32-p4-jc8012p4a1 guition-esp32-p4-jc8012p4a1-v2 guition-esp32-p4-jc8012p4a1-v3 guition-esp32-p4-jc1060p470-v2 esp32-p4-86"
@@ -320,7 +325,7 @@ jobs:
   deploy:
     name: Deploy to Pages
     needs: [build-docs, download-firmware]
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -355,6 +360,7 @@ jobs:
         uses: actions/deploy-pages@v5
 
       - name: Verify public firmware assets
+        if: needs.download-firmware.outputs.has-stable == 'true'
         run: >-
           python3 scripts/check_public_firmware.py
           --base-url "${{ steps.deployment.outputs.page_url }}"
