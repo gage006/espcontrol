@@ -1,5 +1,5 @@
 import { state } from "../state/app_instance";
-import { configOptionEnabled, configOptionValue } from "../model/config_primitives";
+import { configOptionEnabled, configOptionValue, setConfigOptionValue } from "../model/config_primitives";
 import {
     cardContractAllowInSubpage,
     cardContractCard,
@@ -40,6 +40,7 @@ export function registerMediaCardTypes(
         mediaEditorValidMode,
         mediaNowPlayingControlValues,
         mediaNowPlayingControls,
+        mediaNowPlayingTapAction,
         mediaStateDisplayModeSupported,
         mediaPlaylistSourceOptions,
         mediaPlaylistSourceDefinition,
@@ -138,12 +139,12 @@ export function registerMediaCardTypes(
             ],
         },
         nowPlayingControls: {
-            label: "Controls",
+            label: "Tile Display",
             inputId: "media-controls",
             options: [
-                ["", "None"],
-                ["progress", "Track Position"],
-                ["play_pause", "Play/Pause"],
+                ["", "Track Info"],
+                ["progress", "Progress"],
+                ["play_pause", "Playback State"],
             ],
         },
         controlLabelDisplay: {
@@ -523,13 +524,42 @@ export function registerMediaCardTypes(
                         inputId: helpers.idPrefix + "media-controls",
                         value: function (this: any) { return mediaNowPlayingControls(b); },
                         onSelect: function (this: any, button?: any, cardHelpers?: any, value?: any) {
+                            const action = mediaNowPlayingTapAction(button);
                             button.precision = value;
+                            button.options = setConfigOptionValue(button.options, "media_tap_action",
+                                action === "seek" && value !== "progress" ? "none" : action);
                             cardHelpers.saveField("precision", button.precision);
-                            renderButtonSettings();
+                            cardHelpers.saveField("options", button.options);
+                            syncTapAction();
+                            renderPreview();
                         },
                     }),
                 });
                 controls.segment.classList.add("sp-segment-scroll");
+                const tapAction = helpers.renderCardSegmentControl(panel, b, helpers, {
+                    segment: {
+                        label: "Tap Action",
+                        inputId: helpers.idPrefix + "media-tap-action",
+                        options: [["none", "None"], ["play_pause", "Play/Pause"], ["seek", "Seek"]],
+                        value: function () { return mediaNowPlayingTapAction(b); },
+                        onSelect: function (_button: any, cardHelpers: any, value: string) {
+                            if (value === "seek" && !mediaNowPlayingProgressEnabled(b)) return;
+                            b.options = setConfigOptionValue(b.options, "media_tap_action", value);
+                            cardHelpers.saveField("options", b.options);
+                            renderPreview();
+                        },
+                    },
+                });
+                function syncTapAction() {
+                    const action = mediaNowPlayingTapAction(b);
+                    for (const value in tapAction.buttons) {
+                        tapAction.buttons[value].classList.toggle("active", value === action);
+                    }
+                    tapAction.buttons.seek.disabled = !mediaNowPlayingProgressEnabled(b);
+                    tapAction.buttons.seek.title = mediaNowPlayingProgressEnabled(b)
+                        ? "" : "Select Progress to enable seeking.";
+                }
+                syncTapAction();
             }
             if (b.sensor === "now_playing") {
                 var controlsMode: any = mediaNowPlayingControls(b);
@@ -887,10 +917,10 @@ export function registerMediaCardTypes(
             if (mode === "now_playing") {
                 var progressBg: any = "";
                 if (mediaNowPlayingProgressEnabled(b)) {
-                    var nowBgColor: any = WEB_UI_COLORS.secondary;
+                    var nowBgColor: any = WEB_UI_COLORS.tertiary;
                     progressBg =
                         '<span class="sp-slider-preview" style="inset:-2px;background:#' + helpers.escHtml(nowBgColor) + '">' +
-                            '<span class="sp-slider-track"><span class="sp-slider-fill" style="width:50%;height:100%;background:#' + WEB_UI_COLORS.secondary + '">' +
+                            '<span class="sp-slider-track"><span class="sp-slider-fill" style="width:50%;height:100%;background:#' + helpers.escHtml(state.onColor || WEB_UI_COLORS.primary) + '">' +
                             '</span></span></span>';
                 }
                 else if (mediaNowPlayingPlayPauseEnabled(b)) {

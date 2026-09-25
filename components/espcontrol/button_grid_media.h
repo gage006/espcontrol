@@ -341,6 +341,7 @@ inline void media_playback_subscribe_speaker_discovery(
   MediaPlaybackState *state, const std::string &entity_id);
 inline void media_playback_refresh_progress_timer(MediaPlaybackState *state);
 inline void media_playback_schedule_metadata_refresh(MediaPlaybackState *state);
+inline void media_playback_recover_missing_progress(MediaPlaybackState *state);
 inline void media_playback_apply_metadata_consumers(MediaPlaybackState *state);
 inline void media_playback_apply_progress_consumers(MediaPlaybackState *state);
 
@@ -996,6 +997,13 @@ inline void media_playback_apply_state_to_slider(MediaPlaybackState *state,
   if (!state || !ctx) return;
   ctx->available = state->available;
   ctx->media_playing = state->playing;
+  if (ctx->media_playing_color != ctx->media_paused_color && ctx->fill) {
+    lv_obj_set_style_bg_color(
+      ctx->fill,
+      lv_color_hex(state->available && state->playing
+        ? ctx->media_playing_color : ctx->media_paused_color),
+      LV_PART_MAIN);
+  }
   if (ctx->media_status_lbl) {
     std::string label = media_status_text(state->available ? state->state_text : std::string("unavailable"));
     lv_label_set_display_text(ctx->media_status_lbl, label.c_str());
@@ -1591,6 +1599,17 @@ inline void media_playback_schedule_metadata_refresh(MediaPlaybackState *state) 
   if (!state || state->entity_id.empty()) return;
   ha_schedule_metadata_refresh(state->entity_id, {"media_title", "media_artist"},
                                HA_SUBSCRIPTION_SCOPE_DEFAULT);
+  media_playback_recover_missing_progress(state);
+}
+
+inline void media_playback_recover_missing_progress(MediaPlaybackState *state) {
+  if (!state || !state->playing || !state->progress_subscribed ||
+      state->entity_id.empty() || (state->has_duration && state->has_position)) return;
+  // An unchanged HA attribute may not be resent after local progress was cleared.
+  // Refresh only missing progress on a playback edge, not on every timer tick.
+  ha_schedule_metadata_refresh(state->entity_id,
+    {"media_duration", "media_position", "media_position_updated_at"},
+    state->progress_subscription_scope);
 }
 
 inline void media_playback_subscribe_playback_state(MediaPlaybackState *state) {
@@ -1634,6 +1653,7 @@ inline void media_playback_subscribe_playback_state(MediaPlaybackState *state) {
         }
         media_playback_apply_state_to_consumers(state);
         media_playback_refresh_progress_timer(state);
+        if (!was_playing && state->playing) media_playback_recover_missing_progress(state);
         // Attribute subscriptions only report values that changed. If an
         // entity retains the same track while moving through idle, the local
         // idle cleanup has no metadata callback to repopulate the card or its
@@ -2233,8 +2253,10 @@ inline void setup_media_now_playing_layout(lv_obj_t *btn, lv_obj_t *icon_lbl,
 
 inline lv_obj_t *setup_media_progress_background(lv_obj_t *btn,
                                                  uint32_t progress_color,
+                                                 uint32_t paused_color,
                                                  uint32_t background_color,
-                                                 const std::string &entity_id) {
+                                                 const std::string &entity_id,
+                                                 bool seek_enabled = false) {
   lv_obj_set_style_bg_color(btn, lv_color_hex(background_color), LV_PART_MAIN);
   lv_obj_set_style_bg_color(
     btn, lv_color_hex(background_color),
@@ -2260,9 +2282,14 @@ inline lv_obj_t *setup_media_progress_background(lv_obj_t *btn,
   ctx->content_pad_right = padding.right;
   ctx->content_pad_bottom = padding.bottom;
   ctx->media_position = true;
+  ctx->interactive = seek_enabled;
+  ctx->media_playing_color = progress_color;
+  ctx->media_paused_color = paused_color;
   ctx->media_slider = slider;
   lv_obj_set_user_data(slider, (void *)ctx);
   slider_bind_geometry_refresh(btn, slider);
+
+  if (!seek_enabled) lv_obj_clear_flag(slider, LV_OBJ_FLAG_CLICKABLE);
 
   lv_obj_add_event_cb(slider, [](lv_event_t *e) {
     lv_obj_t *sl = static_cast<lv_obj_t *>(lv_event_get_target(e));
@@ -2272,14 +2299,16 @@ inline lv_obj_t *setup_media_progress_background(lv_obj_t *btn,
     slider_update_ctx_fill(ctx, lv_obj_get_parent(sl), ctx->inverted ? 100 - val : val);
   }, LV_EVENT_VALUE_CHANGED, nullptr);
 
-  lv_obj_add_event_cb(slider, [](lv_event_t *e) {
-    lv_obj_t *sl = static_cast<lv_obj_t *>(lv_event_get_target(e));
-    SliderCtx *ctx = (SliderCtx *)lv_obj_get_user_data(sl);
-    if (!ctx || ctx->entity_id.empty() || !ctx->available) return;
-    int val = lv_slider_get_value(sl);
-    media_set_pending_seek_position(ctx, val);
-    send_media_seek_action(ctx->entity_id, val, ctx->media_duration);
-  }, LV_EVENT_RELEASED, nullptr);
+  if (seek_enabled) {
+    lv_obj_add_event_cb(slider, [](lv_event_t *e) {
+      lv_obj_t *sl = static_cast<lv_obj_t *>(lv_event_get_target(e));
+      SliderCtx *ctx = static_cast<SliderCtx *>(lv_obj_get_user_data(sl));
+      if (!ctx || !ctx->available || ctx->entity_id.empty()) return;
+      const int value = lv_slider_get_value(sl);
+      media_set_pending_seek_position(ctx, value);
+      send_media_seek_action(ctx->entity_id, value, ctx->media_duration);
+    }, LV_EVENT_RELEASED, nullptr);
+  }
 
   return slider;
 }
@@ -4631,7 +4660,9 @@ inline void setup_media_card(BtnSlot &s, const ParsedCfg &p, uint32_t on_color,
     ctx->show_track_details = mode != "cover_art" || media_cover_art_details_enabled(p);
     ctx->play_pause_background = mode == "now_playing" && media_now_playing_play_pause_enabled(p);
     if (mode == "now_playing" && media_now_playing_progress_enabled(p)) {
-      ctx->progress_slider = setup_media_progress_background(s.btn, secondary_color, tertiary_color, p.entity);
+      ctx->progress_slider = setup_media_progress_background(
+        s.btn, on_color, secondary_color, tertiary_color, p.entity,
+        espcontrol::media::tap_action_from_saved(p) == espcontrol::media::TapAction::SEEK);
     }
     const CardPadding layout_padding = ctx->progress_slider ? padding : CardPadding{};
     lv_obj_set_user_data(s.sensor_container, (void *)ctx);
@@ -4684,7 +4715,8 @@ inline void setup_media_card(BtnSlot &s, const ParsedCfg &p, uint32_t on_color,
     ctx->artist_lbl = s.text_lbl;
     setup_media_now_playing_layout(
       s.btn, s.icon_lbl, s.sensor_lbl, s.text_lbl, media_title_font, layout_padding,
-      row_span == 1 ? 2 : 0, ctx->play_pause_background,
+      row_span == 1 ? 2 : 0,
+      espcontrol::media::tap_action_from_saved(p) == espcontrol::media::TapAction::PLAY_PAUSE,
       mode == "now_playing" && media_now_playing_progress_enabled(p)
         ? layout_padding.left : 0);
     return;
