@@ -23,7 +23,7 @@ concurrency:
 jobs:
   preflight:
     name: Product Preflight
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     outputs:
       source_sha: ${{ steps.source.outputs.sha }}
     steps:
@@ -109,7 +109,7 @@ jobs:
           LEGACY_WEB_MANIFEST="${LEGACY_WEB_DIR}/web-assets.json"
           LEGACY_WEB_ARGS=()
           mkdir -p "${LEGACY_WEB_DIR}"
-          if curl -fsSL "https://jtenniswood.github.io/espcontrol/webserver/web-assets.json" \
+          if curl -fsSL "https://gage006.github.io/espcontrol/webserver/web-assets.json" \
             -o "${LEGACY_WEB_MANIFEST}"; then
             BUNDLE_PATH=$(jq -er '[.bundles[] | select(any(.firmwareVersions[]?; . != "dev"))][0].path' \
               "${LEGACY_WEB_MANIFEST}")
@@ -118,7 +118,7 @@ jobs:
               exit 1
             fi
             mkdir -p "docs/public/webserver/$(dirname "${BUNDLE_PATH}")"
-            curl -fsSL "https://jtenniswood.github.io/espcontrol/webserver/${BUNDLE_PATH}" \
+            curl -fsSL "https://gage006.github.io/espcontrol/webserver/${BUNDLE_PATH}" \
               -o "docs/public/webserver/${BUNDLE_PATH}"
             LEGACY_WEB_ARGS=(--legacy-web-manifest "${LEGACY_WEB_MANIFEST}")
           else
@@ -152,7 +152,7 @@ jobs:
   device-matrix:
     name: Prepare Device Matrix
     needs: preflight
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.matrix.outputs.matrix }}
     steps:
@@ -174,7 +174,7 @@ jobs:
   build-firmware:
     name: Build ${{ matrix.slug }}
     needs: [preflight, device-matrix]
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       max-parallel: 2
@@ -408,7 +408,7 @@ jobs:
   assemble-release:
     name: Assemble Verified Distribution
     needs: [preflight, build-firmware]
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     steps:
       - name: Prepare self-hosted workspace
         run: |
@@ -492,7 +492,7 @@ jobs:
   publish:
     name: Publish Verified Draft
     needs: [preflight, assemble-release]
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     steps:
       - name: Prepare self-hosted workspace
         run: |
