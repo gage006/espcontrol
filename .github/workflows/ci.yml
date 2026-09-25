@@ -53,9 +53,10 @@ jobs:
   sync-icons:
     name: Sync Generated Icons
     if: github.event_name != 'pull_request'
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     permissions:
       contents: write
+      actions: write
     outputs:
       changed: ${{ steps.commit.outputs.changed }}
     steps:
@@ -131,13 +132,19 @@ jobs:
           git push
           echo "changed=true" >> "$GITHUB_OUTPUT"
 
+      - name: Validate regenerated upstream integration
+        if: steps.commit.outputs.changed == 'true' && github.ref == 'refs/heads/sync/upstream'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run ci.yml --repo "$GITHUB_REPOSITORY" --ref sync/upstream
+
   validate:
     name: Validate Generated Files
     needs: sync-icons
     if: >-
       always() &&
       (github.event_name == 'pull_request' || needs.sync-icons.outputs.changed != 'true')
-    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || 'self-hosted' }}
+    runs-on: ubuntu-latest
     steps:
       - name: Prepare self-hosted workspace
         run: |
@@ -219,7 +226,7 @@ jobs:
       always() &&
       needs.validate.result == 'success' &&
       (github.event_name == 'pull_request' || needs.sync-icons.outputs.changed != 'true')
-    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || 'self-hosted' }}
+    runs-on: ubuntu-latest
     steps:
       - name: Prepare self-hosted workspace
         run: |

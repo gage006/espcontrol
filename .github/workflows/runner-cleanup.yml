@@ -19,6 +19,7 @@ concurrency:
 
 jobs:
   cleanup:
+    if: github.repository == 'jtenniswood/espcontrol'
     name: Reclaim Runner Disk
     runs-on: self-hosted
     steps:
