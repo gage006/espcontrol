@@ -31,9 +31,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TESTED_SHA: ${{ github.event.workflow_run.head_sha }}
+          CI_RUN_ID: ${{ github.event.workflow_run.id }}
         shell: bash
         run: |
           set -euo pipefail
+          # A successful run with skipped validation is not sufficient.
+          passed=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CI_RUN_ID/jobs?per_page=100" --jq '[.jobs[] | select(.name == "Validate Generated Files" or .name == "Build Docs") | select(.conclusion == "success")] | length')
+          test "$passed" = 2
           git fetch origin sync/upstream main
           test "$(git rev-parse origin/sync/upstream)" = "$TESTED_SHA"
           # A newer fork base needs a new integration and CI run.
