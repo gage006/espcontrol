@@ -17,6 +17,7 @@
 - Commit completed changes and push the branch.
 - Open a pull request marked ready for review so automated checks and review systems run, instead of merging directly to `main`.
 - Leave the pull request open until the user confirms they have tested it.
+- Exception explicitly authorized by the fork owner: upstream sync PRs may merge automatically after a clean AI review, passing up-to-date CI, resolved review conversations, and the fork configuration guard. No human approval or physical-device testing confirmation is required for these automated syncs. Other PRs retain the normal testing-confirmation requirement.
 - Do not close related GitHub issues until the user confirms the fix works.
 - Only work directly on `main` when the user explicitly asks for it, or for a tiny emergency/documentation-only change where a PR would add no value.
 - After a pull request is merged, clean up its local worktree and branch when practical.

@@ -68,6 +68,8 @@ jobs:
             sudo rm -rf "${GITHUB_WORKSPACE:?}/"* "${GITHUB_WORKSPACE:?}/".[!.]* "${GITHUB_WORKSPACE:?}/"..?*
 
       - uses: actions/checkout@v7.0.1
+        with:
+          token: ${{ github.ref == 'refs/heads/sync/upstream' && secrets.UPSTREAM_SYNC_TOKEN || github.token }}
       - run: git sparse-checkout disable || true
 
       - name: Generate icon outputs

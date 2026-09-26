@@ -11,9 +11,14 @@ The `Upstream Sync` workflow checks `jtenniswood/espcontrol:main` every 15
 minutes for `gage006/espcontrol`. It merges upstream into the dedicated
 `sync/upstream` branch, preserving fork changes and upstream history,
 then maintains one PR. No force-push or squash merge is used. Conflicts stop
-the run and leave `main` unchanged.
+the run and leave `main` unchanged. A separate recovery PR exposes conflicting
+upstream changes without resetting the integration branch. Existing open recovery
+PRs are reused and never automatically merged.
 
-For each new sync commit it posts `@codex review`. Automatic merging waits
+Branch CI first regenerates icon outputs where needed; generated commits trigger
+fresh PR CI using the dedicated token. The built-in Actions token dispatches
+branch CI, so the dedicated token still only needs Actions read access.
+For each validated sync commit it posts `@codex review`. Automatic merging waits
 for Codex's thumbs-up on that commit's request (or an explicit Codex approval
 on that commit), successful PR CI, the trusted main branch's fork configuration
 guard, and GitHub's mergeability checks. Findings,

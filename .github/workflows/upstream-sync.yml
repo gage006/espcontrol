@@ -12,6 +12,7 @@ on:
 
 permissions:
   contents: read
+  actions: write
 
 concurrency:
   group: upstream-sync
@@ -30,6 +31,7 @@ jobs:
       - name: Sync, request review, and merge eligible upstream updates
         env:
           GH_TOKEN: ${{ secrets.UPSTREAM_SYNC_TOKEN || github.token }}
+          GH_ACTIONS_TOKEN: ${{ github.token }}
           SYNC_TOKEN_CONFIGURED: ${{ secrets.UPSTREAM_SYNC_TOKEN != '' }}
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
         run: python3 scripts/upstream_sync.py

@@ -52,6 +52,58 @@ class ReviewDecisionTests(unittest.TestCase):
             "user": {"login": "maintainer"}, "commit_id": "current", "state": "CHANGES_REQUESTED"}],
             reactions=[self.thumb]))
 
+    def test_later_approval_supersedes_change_request(self):
+        reviews = [
+            {"id": 1, "user": {"login": "maintainer"}, "commit_id": "old", "state": "CHANGES_REQUESTED"},
+            {"id": 2, "user": {"login": "maintainer"}, "commit_id": "current", "state": "APPROVED"},
+        ]
+        self.assertTrue(self.decide(reviews=reviews, reactions=[self.thumb]))
+
+    def test_comment_does_not_dismiss_change_request(self):
+        reviews = [
+            {"id": 1, "user": {"login": "maintainer"}, "commit_id": "old", "state": "CHANGES_REQUESTED"},
+            {"id": 2, "user": {"login": "maintainer"}, "commit_id": "current", "state": "COMMENTED"},
+        ]
+        self.assertFalse(self.decide(reviews=reviews, reactions=[self.thumb]))
+
+    def test_dismissed_change_request_does_not_block(self):
+        self.assertTrue(self.decide(reviews=[{
+            "user": {"login": "maintainer"}, "commit_id": "old", "state": "DISMISSED"}],
+            reactions=[self.thumb]))
+
+    def test_first_conflict_creates_separate_reviewable_branch(self):
+        from unittest.mock import patch
+        with patch.object(sync, "pages", return_value=[]), patch.object(sync, "api") as calls:
+            calls.side_effect = [[], [], None, {"html_url": "https://github.com/example/recovery"}]
+            sync.recovery_pull("upstream-sha")
+            self.assertEqual(calls.call_args_list[2].args[2], {
+                "ref": "refs/heads/sync/upstream-conflict-upstream-sha", "sha": "upstream-sha"})
+            self.assertEqual(calls.call_args.args[2]["head"], "sync/upstream-conflict-upstream-sha")
+
+    def test_existing_recovery_pr_is_preserved(self):
+        from unittest.mock import patch
+        pull = {"head": {"repo": {"full_name": sync.REPO}, "ref": "sync/upstream-conflict-old"},
+                "html_url": "https://github.com/example/recovery"}
+        with patch.object(sync, "pages", return_value=[pull]), patch.object(sync, "api") as calls:
+            sync.recovery_pull("new")
+            calls.assert_not_called()
+
+    def test_branch_ci_dispatch_uses_builtin_token(self):
+        from unittest.mock import patch
+        with patch.object(sync, "api") as calls, patch.dict(sync.os.environ, {"GH_ACTIONS_TOKEN": "test"}):
+            calls.side_effect = [{"workflow_runs": []}, None]
+            self.assertFalse(sync.branch_ci_ready("current"))
+            self.assertTrue(calls.call_args.args[0].endswith("/dispatches"))
+            self.assertEqual(calls.call_args.kwargs, {"token": "test"})
+
+    def test_branch_ci_does_not_repeat_pending_or_failed_runs(self):
+        from unittest.mock import patch
+        for conclusion in (None, "failure", "cancelled", "success"):
+            with patch.object(sync, "api", return_value={"workflow_runs": [
+                    {"id": 1, "conclusion": conclusion}]}) as calls:
+                self.assertEqual(sync.branch_ci_ready("current"), conclusion == "success")
+                calls.assert_called_once()
+
     def test_dry_run_never_writes(self):
         from unittest.mock import patch
         with patch.object(sync, "api") as mock_api, patch.dict(
@@ -92,6 +144,7 @@ class ReviewDecisionTests(unittest.TestCase):
         with patch.object(sync, "api", side_effect=lambda path, *args: responses[path]) as calls, \
                 patch.object(sync, "pages", side_effect=lambda path: lists[path]), \
                 patch.object(sync, "check_fork_candidate"), \
+                patch.object(sync, "branch_ci_ready", return_value=True), \
                 patch.dict(sync.os.environ, {"DRY_RUN": "false", "SYNC_TOKEN_CONFIGURED": "true"}):
             sync.main()
         return calls

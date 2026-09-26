@@ -15,12 +15,13 @@ BRANCH = "sync/upstream"
 BOT = "chatgpt-codex-connector[bot]"
 
 
-def api(path, method="GET", data=None):
+def api(path, method="GET", data=None, token=None):
     args = ["gh", "api", path, "--method", method]
     if data is not None:
         args += ["--input", "-"]
     result = subprocess.run(args, input=json.dumps(data) if data is not None else None,
-                            encoding="utf-8", capture_output=True)
+                            encoding="utf-8", capture_output=True,
+                            env=(os.environ | {"GH_TOKEN": token}) if token else None)
     if result.returncode:
         raise RuntimeError(f"GitHub API {method} {path} failed: {result.stderr.strip()}")
     return json.loads(result.stdout) if result.stdout.strip() else None
@@ -46,10 +47,16 @@ def report(message):
 
 def review_passed(comments, reviews, request, reactions, sha):
     # No generic 'looks good' text parsing: only the Codex identity may clear review.
-    if any(r["state"] == "CHANGES_REQUESTED" for r in reviews):
+    decisions = {}
+    for review in sorted(reviews, key=lambda r: r.get("id", 0)):
+        if review["state"] in ("APPROVED", "CHANGES_REQUESTED", "DISMISSED"):
+            decisions[review["user"]["login"]] = review
+    if any(r["state"] == "CHANGES_REQUESTED" for r in decisions.values()):
         return False
-    if any(r["user"]["login"] == BOT and r["commit_id"] == sha
-           and r["state"] != "APPROVED" for r in reviews):
+    current = [r for r in reviews if r["user"]["login"] == BOT
+               and r["commit_id"] == sha and r["state"] != "DISMISSED"]
+    latest = max(current, key=lambda r: r.get("id", 0)) if current else None
+    if latest and latest["state"] != "APPROVED":
         return False
     if any(c["user"]["login"] == BOT and c["created_at"] >= request["created_at"]
            for c in comments):
@@ -59,6 +66,44 @@ def review_passed(comments, reviews, request, reactions, sha):
                for r in reactions) or any(
         r["user"]["login"] == BOT and r["commit_id"] == sha
         and r["state"] == "APPROVED" for r in reviews)
+
+
+def recovery_pull(upstream):
+    """Expose a conflict without resetting the normal integration branch."""
+    root = f"repos/{REPO}"
+    branch = "sync/upstream-conflict"
+    pulls = [p for p in pages(f"{root}/pulls?state=open&base=main")
+             if (p["head"].get("repo") or {}).get("full_name") == REPO
+             and p["head"]["ref"].startswith(branch + "-")]
+    if pulls:
+        report(f"Resolve upstream conflicts in {pulls[0]['html_url']}; automation will not merge this PR.")
+        return
+    # A distinct immutable branch per upstream revision also preserves earlier fixes.
+    branch += f"-{upstream}"
+    pulls = api(f"{root}/pulls?state=open&base=main&head=gage006:{branch}")
+    if pulls:
+        report(f"Resolve upstream conflicts in {pulls[0]['html_url']}; automation will not merge this PR.")
+        return
+    refs = api(f"{root}/git/matching-refs/heads/{branch}")
+    if not any(r["ref"] == f"refs/heads/{branch}" for r in refs):
+        api(f"{root}/git/refs", "POST", {"ref": f"refs/heads/{branch}", "sha": upstream})
+    pull = api(f"{root}/pulls", "POST", {
+        "head": branch, "base": "main", "title": "Resolve upstream sync conflicts",
+        "body": "Upstream could not merge cleanly into the fork. Merge main into this branch and resolve conflicts while preserving fork changes. This recovery PR is never automatically merged. After resolving it, merge the recovery branch into sync/upstream for fresh CI and AI review, or test and merge this recovery PR manually. No device testing has been performed."})
+    report(f"Upstream conflict recovery PR: {pull['html_url']}")
+
+
+def branch_ci_ready(head):
+    root = f"repos/{REPO}/actions/workflows/ci.yml"
+    runs = api(f"{root}/runs?event=workflow_dispatch&head_sha={head}&per_page=100")["workflow_runs"]
+    if not runs:
+        api(f"{root}/dispatches", "POST", {"ref": BRANCH}, token=os.environ.get("GH_ACTIONS_TOKEN"))
+        report("Dispatched branch CI to repair generated files before review.")
+        return False
+    if max(runs, key=lambda r: r["id"])["conclusion"] != "success":
+        report("Waiting for successful branch CI; failed runs require attention.")
+        return False
+    return True
 
 
 def check_fork_candidate(head):
@@ -97,7 +142,12 @@ def main():
     # GitHub creates merge commits without executing any incoming code.
     # A conflict produces an API error and leaves main untouched.
     for sha in (base, upstream):
-        api(f"{root}/merges", "POST", {"base": BRANCH, "head": sha})
+        try:
+            api(f"{root}/merges", "POST", {"base": BRANCH, "head": sha})
+        except RuntimeError as error:
+            if "HTTP 409" in str(error):
+                recovery_pull(upstream)
+            raise
     head = api(f"{root}/git/ref/heads/{BRANCH}")["object"]["sha"]
     if not pulls:
         body = """## Summary
@@ -135,6 +185,8 @@ See the generated PR Testing Guidance for affected devices and manual test steps
         pull = pulls[0]
     number = pull["number"]
     report(f"Sync PR: {pull['html_url']}")
+    if not branch_ci_ready(head):
+        return
     comments = pages(f"{root}/issues/{number}/comments")
     actor = api("user")["login"]
     marker = f"<!-- upstream-sync-review:{head} -->"
