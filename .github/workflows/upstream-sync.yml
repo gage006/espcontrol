@@ -20,13 +20,15 @@ concurrency:
 
 jobs:
   sync:
-    if: github.repository == 'gage006/espcontrol'
+    if: >-
+      github.repository == 'gage006/espcontrol' &&
+      (github.ref == 'refs/heads/main' || inputs.dry_run)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7.0.1
         with:
-          ref: main
+          ref: ${{ github.ref }}
           persist-credentials: false
       - name: Sync, request review, and merge eligible upstream updates
         env:
