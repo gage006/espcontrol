@@ -4,9 +4,9 @@
 
 ## Upstream updates
 
-**Sync Upstream** runs daily at 10:23 UTC and can be run manually. It creates or updates the single `sync/upstream` PR. A clean merge candidate includes both upstream and fork changes; CI is dispatched explicitly because GitHub does not trigger PR workflows for pushes made with its workflow token.
+**Upstream Sync** checks every 15 minutes and can be run manually in dry-run mode. It maintains the single `sync/upstream` PR and requests a Codex review for each new revision. A dedicated repository token lets the PR start normal CI and Codex review.
 
-**Merge Validated Upstream** merges only the exact CI-tested candidate, only if it still contains the current fork main and passes the fork update-routing guard. Conflicts stay in the PR for review. Failed sync runs appear in GitHub Actions notifications. Never use a hard reset or GitHub's discard-changes option on main.
+The same workflow merges only after a clean Codex review, successful CI on the current candidate, strict branch protection, and the fork update-routing guard. Conflicts stop the update and leave main unchanged; existing PRs remain open for resolution. The former CI-only **Merge Validated Upstream** workflow is removed so it cannot bypass review. Failed sync runs appear in GitHub Actions notifications. Never use a hard reset or GitHub's discard-changes option on main. See [Automatic Upstream Sync](checks-and-releases.md#automatic-upstream-sync-fork) for token permissions, branch protection, activation, and recovery.
 
 ## Firmware and editor updates
 

@@ -49,6 +49,8 @@ jobs:
       - uses: actions/checkout@v7.0.1
       - name: Check PR documentation decision
         run: python3 scripts/check_pr_process.py
+      - name: Check upstream sync merge safeguards
+        run: python3 -m unittest discover -s tests -p test_upstream_sync.py
 
   sync-icons:
     name: Sync Generated Icons

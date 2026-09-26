@@ -1,67 +1,35 @@
-name: Sync Upstream
+name: Upstream Sync
 
 on:
   schedule:
-    - cron: '23 10 * * *'
+    - cron: '7,22,37,52 * * * *'
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Inspect upstream without changing branches or pull requests
+        type: boolean
+        default: true
 
 permissions:
-  contents: write
-  pull-requests: write
-  actions: write
+  contents: read
 
 concurrency:
-  group: fork-upstream-sync
+  group: upstream-sync
   cancel-in-progress: false
 
 jobs:
   sync:
     if: github.repository == 'gage006/espcontrol'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7.0.1
         with:
           ref: main
-          fetch-depth: 0
-      - name: Prepare upstream integration PR
+          persist-credentials: false
+      - name: Sync, request review, and merge eligible upstream updates
         env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git fetch https://github.com/jtenniswood/espcontrol.git main
-          upstream_sha=$(git rev-parse FETCH_HEAD)
-          if git merge-base --is-ancestor "$upstream_sha" HEAD; then
-            echo 'Fork already contains upstream main.' >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-          if git show-ref --verify --quiet refs/remotes/origin/sync/upstream &&
-             git merge-base --is-ancestor origin/main origin/sync/upstream &&
-             git merge-base --is-ancestor "$upstream_sha" origin/sync/upstream; then
-            # Preserve an existing integration, including manual conflict fixes.
-            gh workflow run ci.yml --repo "$GITHUB_REPOSITORY" --ref sync/upstream
-            exit 0
-          fi
-          git switch -C sync/upstream origin/main
-          clean=true
-          if ! git merge --no-ff --no-edit "$upstream_sha"; then
-            git merge --abort
-            # Expose the conflict in a PR; never discard changes from fork main.
-            git switch -C sync/upstream "$upstream_sha"
-            clean=false
-          fi
-          git push --force-with-lease origin HEAD:refs/heads/sync/upstream
-          pr=$(gh pr list --repo "$GITHUB_REPOSITORY" --base main --head sync/upstream --state open --json number --jq '.[0].number // empty')
-          if [ -z "$pr" ]; then
-            printf '%s\n\n%s\n' 'Integrate new upstream commits while retaining this fork’s changes.' 'Clean integrations are merged after CI and fork-routing checks pass. Conflicts or failed checks require review. No firmware release is published by this workflow.' > /tmp/upstream-pr.md
-            gh pr create --repo "$GITHUB_REPOSITORY" --base main --head sync/upstream --title 'Sync upstream changes' --body-file /tmp/upstream-pr.md --assignee gage006
-          fi
-          if [ "$clean" = true ]; then
-            # GITHUB_TOKEN pushes do not trigger PR CI; dispatch it explicitly.
-            gh workflow run ci.yml --repo "$GITHUB_REPOSITORY" --ref sync/upstream
-          else
-            echo 'Upstream conflicts with fork changes. Resolve the sync/upstream PR; automatic merge is disabled until a clean integration passes CI.' >> "$GITHUB_STEP_SUMMARY"
-            exit 1
-          fi
+          GH_TOKEN: ${{ secrets.UPSTREAM_SYNC_TOKEN || github.token }}
+          SYNC_TOKEN_CONFIGURED: ${{ secrets.UPSTREAM_SYNC_TOKEN != '' }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+        run: python3 scripts/upstream_sync.py
