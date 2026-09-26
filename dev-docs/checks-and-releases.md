@@ -5,6 +5,67 @@ This page describes how verification and release safety work. Use the generated
 exact commands required by a change. Tool installation belongs in
 [Development Environment](development-environment.md).
 
+## Automatic Upstream Sync (Fork)
+
+The `Upstream Sync` workflow checks `jtenniswood/espcontrol:main` every 15
+minutes for `gage006/espcontrol`. It merges upstream into the dedicated
+`sync/upstream` branch, preserving fork changes and upstream history,
+then maintains one PR. No force-push or squash merge is used. Conflicts stop
+the run and leave `main` unchanged. A separate recovery PR exposes conflicting
+upstream changes without resetting the integration branch. Existing open recovery
+PRs are reused and never automatically merged.
+
+Branch CI first regenerates icon outputs where needed; generated commits trigger
+fresh PR CI using the dedicated token. The built-in Actions token dispatches
+branch CI, so the dedicated token still only needs Actions read access.
+For each validated sync commit it posts `@codex review`. Automatic merging waits
+for Codex's thumbs-up on that commit's request (or an explicit Codex approval
+on that commit), successful PR CI, the trusted main branch's fork configuration
+guard, and GitHub's mergeability checks. Findings,
+quota/error messages, missing reviews, failed checks, and unresolved review
+conversations leave the PR open. This is deliberately conservative: a Codex
+text response without the recognized success signal requires manual review.
+Review findings are not automatically fixed. A new upstream or main commit
+updates the PR and requires a fresh review and CI run.
+
+### One-Time Setup
+
+1. Enable Codex Code review for this fork in
+   [Codex settings](https://chatgpt.com/codex/settings/code-review).
+2. Add the Actions repository secret `UPSTREAM_SYNC_TOKEN`: a dedicated,
+   fine-grained GitHub personal access token limited to this fork, with
+   Contents, Pull requests, Issues, and Workflows read/write; Actions and
+   Administration read-only. The workflow uses Administration read access to
+   verify branch protection. Set an expiration and rotate the secret before
+   it expires. A dedicated token allows CI and Codex to receive the generated
+   PR/comment events; the default Actions token is not an unattended substitute.
+   Never put a token in repository files or PR comments.
+3. Protect `main`: require a pull request, require the `CI Gate` status check,
+   require branches to be up to date, require conversation resolution, and
+   enforce these rules for administrators (no bypass). Do not require a human
+   approval if unattended sync is desired; Codex's thumbs-up is not a GitHub
+   approval. These branch rules also apply to ordinary PRs.
+4. Merge the automation setup PR, then run **Actions > Upstream Sync > Run
+   workflow** with `dry_run` checked. Verify the upstream comparison in the
+   run summary. Run again with `dry_run` unchecked to create the first sync PR.
+   Confirm CI starts and Codex responds; the next scheduled run merges only
+   when every condition is satisfied. GitHub auto-merge need not be enabled.
+
+The owner explicitly authorized automatic upstream merges after AI review
+and passing checks. This exception applies only to upstream sync PRs; normal
+feature/fix PRs still wait for user testing confirmation. No workflow flashes
+devices or claims physical-device testing. CI includes the existing check
+graph and documentation build; this does not add full device firmware compiles.
+
+Schedules are approximate and may be delayed by GitHub. Public-repository
+schedules can be disabled after 60 days without repository activity; re-enable
+the workflow from Actions if that occurs. Disable `Upstream Sync` in Actions
+to pause it. Check failed-run notifications for conflicts or expired tokens.
+The workflow does not update local clones, publish releases, or close issues.
+
+References: [GitHub scheduled workflows](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule)
+and [Codex GitHub review](https://developers.openai.com/codex/integrations/github).
+
 ## Dependency-Aware Check Graph
 
 The public npm check commands enter the dependency-aware task graph. A focused
