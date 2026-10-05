@@ -50,11 +50,11 @@ jobs:
       - name: Check PR documentation decision
         run: python3 scripts/check_pr_process.py
       - name: Check upstream sync merge safeguards
-        run: python3 -m unittest discover -s tests -p test_upstream_sync.py
+        run: python3 -m unittest discover -s tests -p 'test_upstream_*.py'
 
   sync-icons:
     name: Sync Generated Icons
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -68,8 +68,6 @@ jobs:
             sudo rm -rf "${GITHUB_WORKSPACE:?}/"* "${GITHUB_WORKSPACE:?}/".[!.]* "${GITHUB_WORKSPACE:?}/"..?*
 
       - uses: actions/checkout@v7.0.1
-        with:
-          token: ${{ github.ref == 'refs/heads/sync/upstream' && secrets.UPSTREAM_SYNC_TOKEN || github.token }}
       - run: git sparse-checkout disable || true
 
       - name: Generate icon outputs
@@ -135,12 +133,6 @@ jobs:
           git commit -m "Build generated icon files"
           git push
           echo "changed=true" >> "$GITHUB_OUTPUT"
-
-      - name: Validate regenerated upstream integration
-        if: steps.commit.outputs.changed == 'true' && github.ref == 'refs/heads/sync/upstream'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh workflow run ci.yml --repo "$GITHUB_REPOSITORY" --ref sync/upstream
 
   validate:
     name: Validate Generated Files

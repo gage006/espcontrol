@@ -94,11 +94,13 @@ def recovery_pull(upstream):
 
 
 def branch_ci_ready(head):
-    root = f"repos/{REPO}/actions/workflows/ci.yml"
-    runs = api(f"{root}/runs?event=workflow_dispatch&head_sha={head}&per_page=100")["workflow_runs"]
+    root = f"repos/{REPO}/actions/workflows/upstream-generate.yml"
+    runs = api(f"{root}/runs?event=workflow_dispatch&branch=main&per_page=100")["workflow_runs"]
+    runs = [r for r in runs if r["display_title"] == f"Upstream outputs {head}"]
     if not runs:
-        api(f"{root}/dispatches", "POST", {"ref": BRANCH}, token=os.environ.get("GH_ACTIONS_TOKEN"))
-        report("Dispatched branch CI to repair generated files before review.")
+        api(f"{root}/dispatches", "POST", {"ref": "main", "inputs": {"head": head}},
+            token=os.environ.get("GH_ACTIONS_TOKEN"))
+        report("Dispatched isolated generation from trusted main before review.")
         return False
     if max(runs, key=lambda r: r["id"])["conclusion"] != "success":
         report("Waiting for successful branch CI; failed runs require attention.")

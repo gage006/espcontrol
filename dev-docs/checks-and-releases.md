@@ -15,9 +15,16 @@ the run and leave `main` unchanged. A separate recovery PR exposes conflicting
 upstream changes without resetting the integration branch. Existing open recovery
 PRs are reused and never automatically merged.
 
-Branch CI first regenerates icon outputs where needed; generated commits trigger
-fresh PR CI using the dedicated token. The built-in Actions token dispatches
-branch CI, so the dedicated token still only needs Actions read access.
+The `Generate Upstream Outputs` workflow is dispatched only on trusted `main`.
+Its read-only job checks out the candidate without persisted credentials and
+generates icon outputs without repository secrets. It uploads generated files
+as data. A separate job, running only trusted code, checks the candidate SHA,
+validates a fixed allowlist of output paths, and publishes a non-force commit
+through the GitHub API. This publisher alone receives the dedicated token;
+it never checks out or executes candidate code. Generated commits trigger fresh
+PR CI. The built-in Actions token dispatches generation, so the dedicated token
+still only needs Actions read access. Invalid artifacts and concurrent branch
+changes stop publication.
 For each validated sync commit it posts `@codex review`. Automatic merging waits
 for Codex's thumbs-up on that commit's request (or an explicit Codex approval
 on that commit), successful PR CI, the trusted main branch's fork configuration
@@ -50,6 +57,10 @@ updates the PR and requires a fresh review and CI run.
    run summary. Run again with `dry_run` unchecked to create the first sync PR.
    Confirm CI starts and Codex responds; the next scheduled run merges only
    when every condition is satisfied. GitHub auto-merge need not be enabled.
+
+Dry runs use a separate job with only a read-only built-in token, including
+when dispatched on a setup branch. They do not receive the dedicated token or
+Actions write access. Live syncs and generation publishing require `main`.
 
 The owner explicitly authorized automatic upstream merges after AI review
 and passing checks. This exception applies only to upstream sync PRs; normal

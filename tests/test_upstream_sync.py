@@ -94,13 +94,14 @@ class ReviewDecisionTests(unittest.TestCase):
             calls.side_effect = [{"workflow_runs": []}, None]
             self.assertFalse(sync.branch_ci_ready("current"))
             self.assertTrue(calls.call_args.args[0].endswith("/dispatches"))
+            self.assertEqual(calls.call_args.args[2], {"ref": "main", "inputs": {"head": "current"}})
             self.assertEqual(calls.call_args.kwargs, {"token": "test"})
 
     def test_branch_ci_does_not_repeat_pending_or_failed_runs(self):
         from unittest.mock import patch
         for conclusion in (None, "failure", "cancelled", "success"):
             with patch.object(sync, "api", return_value={"workflow_runs": [
-                    {"id": 1, "conclusion": conclusion}]}) as calls:
+                    {"id": 1, "conclusion": conclusion, "display_title": "Upstream outputs current"}]}) as calls:
                 self.assertEqual(sync.branch_ci_ready("current"), conclusion == "success")
                 calls.assert_called_once()
 

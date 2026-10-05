@@ -12,17 +12,16 @@ on:
 
 permissions:
   contents: read
-  actions: write
 
 concurrency:
   group: upstream-sync
   cancel-in-progress: false
 
 jobs:
-  sync:
+  dry-run:
     if: >-
       github.repository == 'gage006/espcontrol' &&
-      (github.ref == 'refs/heads/main' || inputs.dry_run)
+      github.event_name == 'workflow_dispatch' && inputs.dry_run
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -30,10 +29,30 @@ jobs:
         with:
           ref: ${{ github.ref }}
           persist-credentials: false
+      - name: Inspect upstream with a read-only token
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DRY_RUN: 'true'
+        run: python3 scripts/upstream_sync.py
+
+  sync:
+    if: >-
+      github.repository == 'gage006/espcontrol' &&
+      github.ref == 'refs/heads/main' && !inputs.dry_run
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
       - name: Sync, request review, and merge eligible upstream updates
         env:
-          GH_TOKEN: ${{ secrets.UPSTREAM_SYNC_TOKEN || github.token }}
+          GH_TOKEN: ${{ secrets.UPSTREAM_SYNC_TOKEN }}
           GH_ACTIONS_TOKEN: ${{ github.token }}
           SYNC_TOKEN_CONFIGURED: ${{ secrets.UPSTREAM_SYNC_TOKEN != '' }}
-          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+          DRY_RUN: 'false'
         run: python3 scripts/upstream_sync.py
