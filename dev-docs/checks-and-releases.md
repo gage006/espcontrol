@@ -18,6 +18,11 @@ changes, or deletions from exposing repository secrets through push or PR events
 Upstream workflow updates require a separate reviewed PR; application updates
 continue syncing automatically, and upstream commit history is retained.
 
+PR testing guidance runs the generator and its dependencies from the pinned PR
+base commit. Changed filenames come from the GitHub API and are escaped before
+rendering, so candidate code or crafted filenames cannot supply commands or
+arbitrary Markdown for the bot's write-capable comment job.
+
 No force-push or squash merge is used. Conflicts outside the retained workflow
 directory stop the run and leave `main` unchanged. A separate recovery PR exposes
 conflicting upstream changes with the same trusted workflow directory, without

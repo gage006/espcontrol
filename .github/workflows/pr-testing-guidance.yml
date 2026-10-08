@@ -22,6 +22,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7.0.1
         with:
+          # Generate bot comments from reviewed code and its trusted dependencies.
+          ref: ${{ github.event.pull_request.base.sha }}
           persist-credentials: false
 
       - name: Collect changed files
@@ -31,7 +33,20 @@ jobs:
           gh api \
             "repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files" \
             --paginate \
-            --jq '.[].filename' > changed-files.txt
+            --jq '.[].filename | @json' > changed-files.jsonl
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          paths = []
+          with Path("changed-files.jsonl").open(encoding="utf-8") as filenames:
+              for line in filenames:
+                  # Filenames are untrusted: keep each on one line inside Markdown
+                  # code spans, and prevent mentions from becoming bot commands.
+                  path = json.dumps(json.loads(line), ensure_ascii=True)[1:-1]
+                  paths.append(path.replace("`", r"\u0060").replace("@", r"\u0040"))
+          Path("changed-files.txt").write_text("\n".join(paths) + "\n")
+          PY
 
       - name: Generate testing guidance
         run: python3 scripts/pr_testing_guidance.py --changed-files changed-files.txt --output pr-testing-guidance.md
