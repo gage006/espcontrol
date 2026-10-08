@@ -22,7 +22,7 @@ jobs:
     if: >-
       github.repository == 'gage006/espcontrol' &&
       github.event_name == 'workflow_dispatch' && inputs.dry_run
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7.0.1
@@ -39,7 +39,7 @@ jobs:
     if: >-
       github.repository == 'gage006/espcontrol' &&
       github.ref == 'refs/heads/main' && !inputs.dry_run
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       contents: read

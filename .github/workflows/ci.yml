@@ -44,7 +44,7 @@ jobs:
   pr-process:
     name: PR Process
     if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7.0.1
       - name: Check PR documentation decision
@@ -55,7 +55,7 @@ jobs:
   sync-icons:
     name: Sync Generated Icons
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
       actions: write
@@ -79,7 +79,7 @@ jobs:
           if git diff --quiet -- \
             common/assets/icon_glyphs.yaml \
             components/espcontrol/icons.h \
-            src/webserver/entry.ts; then
+            src/webserver/generated/icons.ts; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"
@@ -108,7 +108,7 @@ jobs:
           if git diff --quiet -- \
             common/assets/icon_glyphs.yaml \
             components/espcontrol/icons.h \
-            src/webserver/entry.ts \
+            src/webserver/generated/icons.ts \
             docs/public/webserver/www.js \
             docs/public/webserver/*/www.js \
             docs/public/webserver/embedded/www.js \
@@ -124,7 +124,7 @@ jobs:
           git add \
             common/assets/icon_glyphs.yaml \
             components/espcontrol/icons.h \
-            src/webserver/entry.ts \
+            src/webserver/generated/icons.ts \
             docs/public/webserver/www.js \
             docs/public/webserver/*/www.js \
             docs/public/webserver/embedded/www.js \
@@ -140,7 +140,7 @@ jobs:
     if: >-
       always() &&
       (github.event_name == 'pull_request' || needs.sync-icons.outputs.changed != 'true')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Prepare self-hosted workspace
         run: |
@@ -222,7 +222,7 @@ jobs:
       always() &&
       needs.validate.result == 'success' &&
       (github.event_name == 'pull_request' || needs.sync-icons.outputs.changed != 'true')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Prepare self-hosted workspace
         run: |
@@ -249,7 +249,7 @@ jobs:
     name: CI Gate
     needs: [pr-process, validate, docs]
     if: always() && github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Verify required CI jobs passed
         run: |

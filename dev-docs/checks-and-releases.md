@@ -25,6 +25,9 @@ it never checks out or executes candidate code. Generated commits trigger fresh
 PR CI. The built-in Actions token dispatches generation, so the dedicated token
 still only needs Actions read access. Invalid artifacts and concurrent branch
 changes stop publication.
+The generated icon module is `src/webserver/generated/icons.ts`; the publisher
+does not accept the handwritten web entry point. A regression test runs the
+generator and artifact export together to keep this boundary aligned.
 For each validated sync commit it posts `@codex review`. Automatic merging waits
 for Codex's thumbs-up on that commit's request (or an explicit Codex approval
 on that commit), successful PR CI, the trusted main branch's fork configuration
@@ -73,6 +76,12 @@ schedules can be disabled after 60 days without repository activity; re-enable
 the workflow from Actions if that occurs. Disable `Upstream Sync` in Actions
 to pause it. Check failed-run notifications for conflicts or expired tokens.
 The workflow does not update local clones, publish releases, or close issues.
+
+CI, testing guidance, and upstream automation use the pinned `ubuntu-24.04`
+runner image. If GitHub reports that a hosted runner could not acquire a job,
+or an internal server error before checkout, no repository checks ran. Rerun
+that job after runner availability recovers; a runner failure is not a passing
+check and does not relax the merge gate.
 
 References: [GitHub scheduled workflows](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule)
 and [Codex GitHub review](https://developers.openai.com/codex/integrations/github).

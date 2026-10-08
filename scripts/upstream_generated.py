@@ -13,7 +13,7 @@ from upstream_sync import api, BRANCH, REPO
 
 ROOT = f"repos/{REPO}"
 PATHS = ["common/assets/icon_glyphs.yaml", "components/espcontrol/icons.h",
-         "src/webserver/entry.ts", "docs/public/webserver"]
+         "src/webserver/generated/icons.ts", "docs/public/webserver"]
 
 
 def allowed(path):

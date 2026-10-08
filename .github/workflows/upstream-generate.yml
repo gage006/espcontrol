@@ -19,7 +19,7 @@ concurrency:
 jobs:
   generate:
     if: github.repository == 'gage006/espcontrol' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7.0.1
@@ -44,7 +44,7 @@ jobs:
         working-directory: candidate
         run: |
           python3 scripts/build.py icons
-          if ! git diff --quiet -- common/assets/icon_glyphs.yaml components/espcontrol/icons.h src/webserver/entry.ts; then
+          if ! git diff --quiet -- common/assets/icon_glyphs.yaml components/espcontrol/icons.h src/webserver/generated/icons.ts; then
             npm ci
             python3 scripts/build.py www
           fi
@@ -60,7 +60,7 @@ jobs:
   publish:
     needs: generate
     if: github.repository == 'gage006/espcontrol' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7.0.1
