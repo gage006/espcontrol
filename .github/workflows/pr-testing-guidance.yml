@@ -49,7 +49,34 @@ jobs:
           PY
 
       - name: Generate testing guidance
-        run: python3 scripts/pr_testing_guidance.py --changed-files changed-files.txt --output pr-testing-guidance.md
+        run: |
+          python3 scripts/pr_testing_guidance.py --changed-files changed-files.txt --output pr-testing-guidance.md
+          python3 - <<'PY'
+          from pathlib import Path
+          import sys
+
+          sys.path.insert(0, "scripts")
+          from device_profiles import load_device_profiles
+
+          known = set(load_device_profiles())
+          paths = Path("changed-files.txt").read_text().splitlines()
+          devices = set()
+          for path in paths:
+              parts = path.split("/")
+              if parts[0] == "devices" and len(parts) >= 3:
+                  devices.add(parts[1])
+              elif path.startswith("product/v2/devices/") and path.endswith(".json"):
+                  devices.add(Path(path).stem)
+              elif parts[0] == "builds" and len(parts) == 2 and path.endswith(".yaml"):
+                  devices.add(Path(path).stem.removesuffix(".factory").removesuffix(".recovery"))
+          added = sorted(devices - known)
+          if added:
+              note = ["", "## New or renamed devices", "",
+                      "These devices are absent from the PR base and require device testing before merge:"]
+              note.extend(f"- `{slug}`" for slug in added)
+              with Path("pr-testing-guidance.md").open("a", encoding="utf-8") as output:
+                  output.write("\n".join(note) + "\n")
+          PY
 
       - name: Add guidance to workflow summary
         run: cat pr-testing-guidance.md >> "$GITHUB_STEP_SUMMARY"

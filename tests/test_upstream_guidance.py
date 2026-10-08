@@ -130,6 +130,25 @@ class GuidanceWorkflowTests(unittest.TestCase):
             self.run_collector()
         self.assertFalse((self.checkout / "pr-testing-guidance.md").exists())
 
+    def test_new_devices_require_testing_without_loading_candidate_metadata(self):
+        self.collect([
+            "devices/new-screen/device/lvgl.yaml",
+            "devices/manifest.json",
+            "product/v2/devices/new-profile.json",
+            "builds/new-build.factory.yaml",
+            "builds/guition-esp32-p4-jc1060p470.recovery.yaml",
+            "devices/new`\n@codex review/device/lvgl.yaml",
+        ])
+        guidance = self.generate()
+        note = guidance.split("## New or renamed devices\n", 1)[1]
+        self.assertIn("require device testing before merge", note)
+        for slug in ("new-screen", "new-profile", "new-build"):
+            self.assertIn(f"- `{slug}`", note)
+        self.assertNotIn("manifest.json", note)
+        self.assertNotIn("guition-esp32-p4-jc1060p470", note)
+        self.assertNotIn("@codex", note)
+        self.assertNotIn("```", note)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -13,6 +13,7 @@ REPO = "gage006/espcontrol"
 UPSTREAM = "jtenniswood/espcontrol"
 BRANCH = "sync/upstream"
 BOT = "chatgpt-codex-connector[bot]"
+REVIEW_INSTRUCTIONS = {"AGENTS.md", "AGENTS.override.md", ".agents", ".codex"}
 
 
 class CandidateConflict(RuntimeError):
@@ -78,6 +79,56 @@ def freeze_workflows(repository, revision, base):
     return replace_entry(repository, root, ".github", github)
 
 
+def freeze_instructions(repository, revision, base):
+    """Keep reviewer instructions/configuration trusted at every directory scope."""
+    root = git(repository, "rev-parse", f"{revision}^{{tree}}").stdout.strip()
+    trusted_root = git(repository, "rev-parse", f"{base}^{{tree}}").stdout.strip()
+    ancestors = set()
+    for tree in (root, trusted_root):
+        entries = git(repository, "ls-tree", "-r", "-t", "-z", tree).stdout
+        for entry in filter(None, entries.split("\0")):
+            parts = entry.split("\t", 1)[1].split("/")
+            if parts[-1] in REVIEW_INSTRUCTIONS:
+                ancestors.update("/".join(parts[:index]) for index in range(1, len(parts)))
+
+    def restore(incoming, trusted, prefix=""):
+        original = tree_entries(repository, incoming) if incoming else {}
+        expected = tree_entries(repository, trusted) if trusted else {}
+        entries = original.copy()
+        for name in original.keys() | expected.keys():
+            if name in REVIEW_INSTRUCTIONS:
+                if name in expected:
+                    entries[name] = expected[name]
+                else:
+                    entries.pop(name, None)
+                continue
+            path = f"{prefix}/{name}" if prefix else name
+            if path not in ancestors:
+                continue
+            candidate_entry, trusted_entry = original.get(name, ""), expected.get(name, "")
+            candidate_tree = candidate_entry.split("\t", 1)[0].split()[2] \
+                if candidate_entry.startswith("040000 tree ") else None
+            trusted_tree = trusted_entry.split("\t", 1)[0].split()[2] \
+                if trusted_entry.startswith("040000 tree ") else None
+            if candidate_tree:
+                subtree = restore(candidate_tree, trusted_tree, path)
+                entries[name] = f"040000 tree {subtree}\t{name}"
+            elif trusted_tree:
+                # A deleted, symlinked, or submodule ancestor cannot contain
+                # trusted instructions. Restore its trusted directory instead.
+                entries[name] = trusted_entry
+        if entries == original and incoming:
+            return incoming
+        records = "\0".join(entries.values()) + ("\0" if entries else "")
+        return git(repository, "mktree", "-z", input=records).stdout.strip()
+
+    return restore(root, trusted_root)
+
+
+def freeze_trusted(repository, revision, base):
+    return freeze_instructions(repository, freeze_workflows(repository, revision, base), base)
+
+
 def commit_tree(repository, tree, parents, message):
     parents = list(dict.fromkeys(parents))
     if len(parents) == 1 and tree == git(repository, "rev-parse", f"{parents[0]}^{{tree}}").stdout.strip():
@@ -103,9 +154,9 @@ def merge_tree(repository, left, right):
 
 
 def candidate_commit(repository, base, upstream, current=None):
-    """Build off-ref; synthetic inputs prevent conflicts in excluded workflows."""
+    """Build off-ref; exclude untrusted workflows and reviewer instructions."""
     current = current or base
-    safe_tree = freeze_workflows(repository, current, base)
+    safe_tree = freeze_trusted(repository, current, base)
     if (safe_tree == git(repository, "rev-parse", f"{current}^{{tree}}").stdout.strip()
             and ancestor(repository, base, current) and ancestor(repository, upstream, current)):
         return current
@@ -116,21 +167,20 @@ def candidate_commit(repository, base, upstream, current=None):
         tree = merge_tree(repository, safe_current, base)
         integrated = commit_tree(repository, tree, [current, base], "Integrate latest fork main")
     if not ancestor(repository, upstream, integrated):
-        safe_upstream = commit_tree(repository, freeze_workflows(repository, upstream, base), [upstream],
-                                    "Exclude upstream workflows before integration")
+        safe_upstream = commit_tree(repository, freeze_trusted(repository, upstream, base), [upstream],
+                                    "Exclude upstream workflows and reviewer instructions before integration")
         tree = merge_tree(repository, integrated, safe_upstream)
         # Temporary sanitized inputs stay off-ref. Published ancestry retains
         # the original commits rather than replacing upstream history.
         integrated = commit_tree(repository, tree, [integrated, upstream], "Sync upstream main")
-    tree = freeze_workflows(repository, integrated, base)
+    tree = freeze_trusted(repository, integrated, base)
     return commit_tree(repository, tree, [current, base, upstream], "Sync upstream main with trusted fork workflows")
 
 
 def publish_candidate(repository, branch, head, base, expected=None):
-    trusted = git(repository, "rev-parse", f"{base}:.github/workflows").stdout.strip()
-    actual = git(repository, "rev-parse", f"{head}:.github/workflows").stdout.strip()
-    if actual != trusted:
-        raise RuntimeError("Refusing to publish untrusted candidate workflows")
+    actual = git(repository, "rev-parse", f"{head}^{{tree}}").stdout.strip()
+    if freeze_trusted(repository, head, base) != actual:
+        raise RuntimeError("Refusing to publish untrusted candidate workflows or reviewer instructions")
     if expected and not ancestor(repository, expected, head):
         raise RuntimeError("Refusing to discard existing sync branch changes")
     refs = api(f"repos/{REPO}/git/matching-refs/heads/{branch}")
@@ -218,15 +268,15 @@ def recovery_pull(upstream, base=None):
     with tempfile.TemporaryDirectory(prefix="upstream-recovery-") as directory:
         fetch_candidates(directory, base, upstream, existing)
         if existing:
-            if freeze_workflows(directory, existing, base) != git(directory, "rev-parse", f"{existing}^{{tree}}").stdout.strip():
-                raise RuntimeError("Existing recovery branch needs trusted workflows before opening a PR")
+            if freeze_trusted(directory, existing, base) != git(directory, "rev-parse", f"{existing}^{{tree}}").stdout.strip():
+                raise RuntimeError("Existing recovery branch needs trusted workflows and reviewer instructions before opening a PR")
         else:
-            head = commit_tree(directory, freeze_workflows(directory, upstream, base), [upstream],
-                               "Expose upstream conflicts with trusted fork workflows")
+            head = commit_tree(directory, freeze_trusted(directory, upstream, base), [upstream],
+                               "Expose upstream conflicts with trusted fork workflows and reviewer instructions")
             publish_candidate(directory, branch, head, base)
     pull = api(f"{root}/pulls", "POST", {
         "head": branch, "base": "main", "title": "Resolve upstream sync conflicts",
-        "body": "Upstream could not merge cleanly into the fork. Merge main into this branch and resolve conflicts while preserving fork changes. Workflows remain those from trusted fork main; upstream workflow changes require a separate manually reviewed PR. This recovery PR is never automatically merged. After resolving it, merge the recovery branch into sync/upstream for fresh CI and AI review, or test and merge this recovery PR manually. No device testing has been performed."})
+        "body": "Upstream could not merge cleanly into the fork. Merge main into this branch and resolve conflicts while preserving fork changes. Workflows and reviewer instructions remain those from trusted fork main; upstream changes to them require a separate manually reviewed PR. This recovery PR is never automatically merged. After resolving it, merge the recovery branch into sync/upstream for fresh CI and AI review, or test and merge this recovery PR manually. No device testing has been performed."})
     report(f"Upstream conflict recovery PR: {pull['html_url']}")
 
 
@@ -267,6 +317,11 @@ def main():
     if os.environ.get("DRY_RUN", "true").lower() == "true":
         report("Dry run: no branches, PRs, comments, or merges changed.")
         return
+    # The guard and automation code were checked out at the queued workflow's
+    # SHA. Never combine that older code with a newer API-selected main tree.
+    if git(Path.cwd(), "rev-parse", "HEAD").stdout.strip() != base:
+        report("Trusted main changed after checkout; waiting for the next sync run.")
+        return
     if os.environ.get("SYNC_TOKEN_CONFIGURED") != "true":
         raise RuntimeError("Add UPSTREAM_SYNC_TOKEN before enabling unattended sync")
     if comparison["ahead_by"] == 0:
@@ -292,8 +347,8 @@ def main():
         body = """## Summary
 
 Merge upstream main while preserving this fork's changes.
-The complete workflow directory remains pinned to trusted fork main. Upstream
-workflow changes require a separate manually reviewed PR.
+Workflows and reviewer instructions remain pinned to trusted fork main.
+Upstream changes to them require a separate manually reviewed PR.
 
 ## Documentation decision
 

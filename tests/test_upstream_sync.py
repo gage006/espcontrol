@@ -2,6 +2,7 @@
 
 import importlib.util
 from pathlib import Path
+from types import SimpleNamespace
 import unittest
 
 spec = importlib.util.spec_from_file_location(
@@ -75,7 +76,7 @@ class ReviewDecisionTests(unittest.TestCase):
         from unittest.mock import patch
         with patch.object(sync, "pages", return_value=[]), patch.object(sync, "api") as calls, \
                 patch.object(sync, "fetch_candidates"), \
-                patch.object(sync, "freeze_workflows", return_value="safe-tree"), \
+                patch.object(sync, "freeze_trusted", return_value="safe-tree"), \
                 patch.object(sync, "commit_tree", return_value="safe-head"), \
                 patch.object(sync, "publish_candidate") as publish:
             calls.side_effect = [[], [], {"html_url": "https://github.com/example/recovery"}]
@@ -120,6 +121,25 @@ class ReviewDecisionTests(unittest.TestCase):
             self.assertEqual(mock_api.call_count, 3)
             self.assertTrue(all(len(c.args) == 1 for c in mock_api.call_args_list))
 
+    def test_stale_trusted_checkout_stops_before_publication_generation_and_merge(self):
+        from unittest.mock import patch
+        with patch.object(sync, "api") as api, \
+                patch.object(sync, "git", return_value=SimpleNamespace(stdout="older-checkout\n")), \
+                patch.object(sync, "fetch_candidates") as fetch, \
+                patch.object(sync, "candidate_commit") as candidate, \
+                patch.object(sync, "publish_candidate") as publish, \
+                patch.object(sync, "recovery_pull") as recovery, \
+                patch.object(sync, "branch_ci_ready") as generate, \
+                patch.object(sync, "check_fork_candidate") as guard, \
+                patch.dict(sync.os.environ, {"DRY_RUN": "false", "SYNC_TOKEN_CONFIGURED": "true"}):
+            api.side_effect = [{"object": {"sha": "newer-main"}},
+                               {"object": {"sha": "upstream"}}, {"ahead_by": 4}]
+            sync.main()
+
+        for operation in (fetch, candidate, publish, recovery, generate, guard):
+            operation.assert_not_called()
+        self.assertTrue(all(len(call.args) == 1 for call in api.call_args_list))
+
     def run_sync(self, conclusion="success", strict=True, fresh_head="current"):
         from unittest.mock import patch
         root = f"repos/{sync.REPO}"
@@ -148,6 +168,7 @@ class ReviewDecisionTests(unittest.TestCase):
                  f"{root}/issues/comments/12/reactions": [self.thumb],
                  f"{root}/pulls/8/reviews": []}
         with patch.object(sync, "api", side_effect=lambda path, *args: responses[path]) as calls, \
+                patch.object(sync, "git", return_value=SimpleNamespace(stdout="base\n")), \
                 patch.object(sync, "pages", side_effect=lambda path: lists[path]), \
                 patch.object(sync, "check_fork_candidate"), \
                 patch.object(sync, "fetch_candidates"), \

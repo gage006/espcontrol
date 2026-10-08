@@ -15,13 +15,20 @@ executing upstream code. Before publishing any branch, normal updates and
 conflict recovery retain the complete `.github/workflows` directory from the
 pinned fork `main` commit. This prevents unreviewed upstream workflow additions,
 changes, or deletions from exposing repository secrets through push or PR events.
-Upstream workflow updates require a separate reviewed PR; application updates
-continue syncing automatically, and upstream commit history is retained.
+Candidates also retain trusted `AGENTS.md`, `AGENTS.override.md`, `.codex`, and
+`.agents` entries at every directory scope, preventing upstream code from
+replacing the reviewer's instructions, configuration, or skills. If a protected
+entry's ancestor is deleted or replaced with a file, symlink, or submodule, its
+trusted directory is restored. Upstream changes to workflows or reviewer
+configuration require a separate reviewed PR; application updates continue
+syncing automatically, and upstream commit history is retained.
 
 PR testing guidance runs the generator and its dependencies from the pinned PR
 base commit. Changed filenames come from the GitHub API and are escaped before
 rendering, so candidate code or crafted filenames cannot supply commands or
 arbitrary Markdown for the bot's write-capable comment job.
+New or renamed devices absent from the trusted base are identified from escaped
+device, profile, and build paths and explicitly included in device-testing notes.
 
 No force-push or squash merge is used. Conflicts outside the retained workflow
 directory stop the run and leave `main` unchanged. A separate recovery PR exposes
@@ -78,6 +85,8 @@ updates the PR and requires a fresh review and CI run.
 Dry runs use a separate job with only a read-only built-in token, including
 when dispatched on a setup branch. They do not receive the dedicated token or
 Actions write access. Live syncs and generation publishing require `main`.
+A live run stops if `main` advanced after its trusted checkout, so candidate
+construction and the fork guard always use the same pinned base revision.
 
 The owner explicitly authorized automatic upstream merges after AI review
 and passing checks. This exception applies only to upstream sync PRs; normal
