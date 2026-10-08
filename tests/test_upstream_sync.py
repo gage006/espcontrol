@@ -73,11 +73,16 @@ class ReviewDecisionTests(unittest.TestCase):
 
     def test_first_conflict_creates_separate_reviewable_branch(self):
         from unittest.mock import patch
-        with patch.object(sync, "pages", return_value=[]), patch.object(sync, "api") as calls:
-            calls.side_effect = [[], [], None, {"html_url": "https://github.com/example/recovery"}]
-            sync.recovery_pull("upstream-sha")
-            self.assertEqual(calls.call_args_list[2].args[2], {
-                "ref": "refs/heads/sync/upstream-conflict-upstream-sha", "sha": "upstream-sha"})
+        with patch.object(sync, "pages", return_value=[]), patch.object(sync, "api") as calls, \
+                patch.object(sync, "fetch_candidates"), \
+                patch.object(sync, "freeze_workflows", return_value="safe-tree"), \
+                patch.object(sync, "commit_tree", return_value="safe-head"), \
+                patch.object(sync, "publish_candidate") as publish:
+            calls.side_effect = [[], [], {"html_url": "https://github.com/example/recovery"}]
+            sync.recovery_pull("upstream-sha", "trusted-main")
+            self.assertEqual(publish.call_args.args[1:], (
+                "sync/upstream-conflict-upstream-sha", "safe-head", "trusted-main"))
+            self.assertFalse(any(c.args[0].endswith("/git/refs") for c in calls.call_args_list))
             self.assertEqual(calls.call_args.args[2]["head"], "sync/upstream-conflict-upstream-sha")
 
     def test_existing_recovery_pr_is_preserved(self):
@@ -126,8 +131,8 @@ class ReviewDecisionTests(unittest.TestCase):
             f"repos/{sync.UPSTREAM}/git/ref/heads/main": {"object": {"sha": "upstream"}},
             f"{root}/compare/base...upstream": {"ahead_by": 4},
             f"{root}/pulls?state=open&base=main&head=gage006:{sync.BRANCH}": [pull],
-            f"{root}/git/matching-refs/heads/{sync.BRANCH}": [{"ref": f"refs/heads/{sync.BRANCH}"}],
-            f"{root}/merges": None,
+            f"{root}/git/matching-refs/heads/{sync.BRANCH}": [
+                {"ref": f"refs/heads/{sync.BRANCH}", "object": {"sha": "current"}}],
             f"{root}/git/ref/heads/{sync.BRANCH}": {"object": {"sha": "current"}},
             "user": {"login": "owner"},
             f"{root}/branches/main/protection": {
@@ -145,6 +150,9 @@ class ReviewDecisionTests(unittest.TestCase):
         with patch.object(sync, "api", side_effect=lambda path, *args: responses[path]) as calls, \
                 patch.object(sync, "pages", side_effect=lambda path: lists[path]), \
                 patch.object(sync, "check_fork_candidate"), \
+                patch.object(sync, "fetch_candidates"), \
+                patch.object(sync, "candidate_commit", return_value="current"), \
+                patch.object(sync, "publish_candidate"), \
                 patch.object(sync, "branch_ci_ready", return_value=True), \
                 patch.dict(sync.os.environ, {"DRY_RUN": "false", "SYNC_TOKEN_CONFIGURED": "true"}):
             sync.main()

@@ -10,10 +10,19 @@ exact commands required by a change. Tool installation belongs in
 The `Upstream Sync` workflow checks `jtenniswood/espcontrol:main` every 15
 minutes for `gage006/espcontrol`. It merges upstream into the dedicated
 `sync/upstream` branch, preserving fork changes and upstream history,
-then maintains one PR. No force-push or squash merge is used. Conflicts stop
-the run and leave `main` unchanged. A separate recovery PR exposes conflicting
-upstream changes without resetting the integration branch. Existing open recovery
-PRs are reused and never automatically merged.
+then maintains one PR. Candidates are constructed without checking out or
+executing upstream code. Before publishing any branch, normal updates and
+conflict recovery retain the complete `.github/workflows` directory from the
+pinned fork `main` commit. This prevents unreviewed upstream workflow additions,
+changes, or deletions from exposing repository secrets through push or PR events.
+Upstream workflow updates require a separate reviewed PR; application updates
+continue syncing automatically, and upstream commit history is retained.
+
+No force-push or squash merge is used. Conflicts outside the retained workflow
+directory stop the run and leave `main` unchanged. A separate recovery PR exposes
+conflicting upstream changes with the same trusted workflow directory, without
+resetting the integration branch. Existing open recovery PRs are reused and never
+automatically merged.
 
 The `Generate Upstream Outputs` workflow is dispatched only on trusted `main`.
 Its read-only job checks out the candidate without persisted credentials and
