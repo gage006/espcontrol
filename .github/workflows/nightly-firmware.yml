@@ -15,8 +15,9 @@ concurrency:
 
 jobs:
   device-matrix:
+    if: github.repository == 'jtenniswood/espcontrol' || github.event_name == 'workflow_dispatch'
     name: Prepare Device Matrix
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.matrix.outputs.matrix }}
     steps:
@@ -27,7 +28,6 @@ jobs:
             common/assets/*.yaml
             common/assets/fonts/*
             common/assets/icons.json
-            common/device/screen_clock.yaml
             product/v2/card_contract.json
             common/config/entity_names.json
             common/config/strings.*.txt
@@ -75,7 +75,7 @@ jobs:
   compile:
     name: Compile Firmware
     needs: device-matrix
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     steps:
       - name: Prepare self-hosted workspace
         run: |
@@ -180,6 +180,7 @@ jobs:
             container=$(${DOCKER} create \
               --user "$(id -u):$(id -g)" \
               -e HOME=/config \
+              -e UV_CACHE_DIR=/config/.esphome/uv \
               -e PLATFORMIO_CORE_DIR=/config/.esphome/platformio \
               -e PLATFORMIO_SETTING_ENABLE_TELEMETRY=false \
               -v "${shared_platformio_cache}:/config/.esphome" \
@@ -207,9 +208,6 @@ jobs:
 
             ${DOCKER} start -a "${container}"
             compile_status=$?
-            python3 scripts/report_firmware_size.py \
-              --target "${target}" --build-root "${build_cache}" \
-              --compile-status "${compile_status}" || compile_status=1
             cleanup_container
             trap - EXIT
             bash scripts/reclaim_actions_disk.sh

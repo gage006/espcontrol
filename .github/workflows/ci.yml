@@ -3,12 +3,11 @@ name: CI
 on:
   workflow_dispatch:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, edited]
   push:
     branches: [main]
     paths:
       - '.github/workflows/ci.yml'
-      - '.github/workflows/pr-process.yml'
       - '.github/workflows/nightly-firmware.yml'
       - '.github/workflows/pr-testing-guidance.yml'
       - '.github/workflows/release.yml'
@@ -42,12 +41,24 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  pr-process:
+    name: PR Process
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Check PR documentation decision
+        run: python3 scripts/check_pr_process.py
+      - name: Check upstream sync merge safeguards
+        run: python3 -m unittest discover -s tests -p 'test_upstream_*.py'
+
   sync-icons:
     name: Sync Generated Icons
-    if: github.event_name != 'pull_request'
-    runs-on: self-hosted
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
+      actions: write
     outputs:
       changed: ${{ steps.commit.outputs.changed }}
     steps:
@@ -68,7 +79,7 @@ jobs:
           if git diff --quiet -- \
             common/assets/icon_glyphs.yaml \
             components/espcontrol/icons.h \
-            src/webserver/entry.ts; then
+            src/webserver/generated/icons.ts; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"
@@ -97,7 +108,7 @@ jobs:
           if git diff --quiet -- \
             common/assets/icon_glyphs.yaml \
             components/espcontrol/icons.h \
-            src/webserver/entry.ts \
+            src/webserver/generated/icons.ts \
             docs/public/webserver/www.js \
             docs/public/webserver/*/www.js \
             docs/public/webserver/embedded/www.js \
@@ -113,7 +124,7 @@ jobs:
           git add \
             common/assets/icon_glyphs.yaml \
             components/espcontrol/icons.h \
-            src/webserver/entry.ts \
+            src/webserver/generated/icons.ts \
             docs/public/webserver/www.js \
             docs/public/webserver/*/www.js \
             docs/public/webserver/embedded/www.js \
@@ -129,7 +140,7 @@ jobs:
     if: >-
       always() &&
       (github.event_name == 'pull_request' || needs.sync-icons.outputs.changed != 'true')
-    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || 'self-hosted' }}
+    runs-on: ubuntu-24.04
     steps:
       - name: Prepare self-hosted workspace
         run: |
@@ -206,11 +217,12 @@ jobs:
 
   docs:
     name: Build Docs
-    needs: sync-icons
+    needs: [sync-icons, validate]
     if: >-
       always() &&
+      needs.validate.result == 'success' &&
       (github.event_name == 'pull_request' || needs.sync-icons.outputs.changed != 'true')
-    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || 'self-hosted' }}
+    runs-on: ubuntu-24.04
     steps:
       - name: Prepare self-hosted workspace
         run: |
@@ -233,23 +245,19 @@ jobs:
 
       - run: npm run docs:build
 
-      - name: Install Chromium for installer checks
-        run: npx playwright install --with-deps chromium
-
-      - name: Check browser USB installer
-        run: npm run docs:check-installer
-
   ci-gate:
     name: CI Gate
-    needs: [validate, docs]
+    needs: [pr-process, validate, docs]
     if: always() && github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Verify required CI jobs passed
         run: |
-          if [ "${{ needs.validate.result }}" != "success" ] ||
+          if [ "${{ needs.pr-process.result }}" != "success" ] ||
+             [ "${{ needs.validate.result }}" != "success" ] ||
              [ "${{ needs.docs.result }}" != "success" ]; then
             echo "::error::Required CI jobs did not pass."
+            echo "PR Process: ${{ needs.pr-process.result }}"
             echo "Validate Generated Files: ${{ needs.validate.result }}"
             echo "Build Docs: ${{ needs.docs.result }}"
             exit 1

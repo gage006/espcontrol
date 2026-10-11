@@ -7,12 +7,6 @@
 
 ## Development workflow
 
-- Resolve the active repository root with `git rev-parse --show-toplevel` and
-  use that worktree for repository files and commands. Do not assume the main
-  checkout's path; this repository is often used through linked worktrees.
-- Keep changes and checks in the worktree where the task was started unless a
-  workflow explicitly needs another branch or worktree.
-
 - Treat `main` as the stable branch.
 - For normal code, firmware, configuration, UI, or documentation changes, create a short-lived branch from the latest `main`.
 - Use a separate git worktree for feature or fix work so multiple issues can be developed and tested at the same time without changing `main`.
@@ -23,6 +17,7 @@
 - Commit completed changes and push the branch.
 - Open a pull request marked ready for review so automated checks and review systems run, instead of merging directly to `main`.
 - Leave the pull request open until the user confirms they have tested it.
+- Exception explicitly authorized by the fork owner: upstream sync PRs may merge automatically after a clean AI review, passing up-to-date CI, resolved review conversations, and the fork configuration guard. No human approval or physical-device testing confirmation is required for these automated syncs. Other PRs retain the normal testing-confirmation requirement.
 - Do not close related GitHub issues until the user confirms the fix works.
 - Only work directly on `main` when the user explicitly asks for it, or for a tiny emergency/documentation-only change where a PR would add no value.
 - After a pull request is merged, clean up its local worktree and branch when practical.

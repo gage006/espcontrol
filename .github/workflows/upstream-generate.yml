@@ -1,0 +1,78 @@
+name: Generate Upstream Outputs
+run-name: Upstream outputs ${{ inputs.head }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      head:
+        description: Exact sync/upstream commit to generate
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: upstream-generation
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    if: github.repository == 'gage006/espcontrol' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: trusted
+          persist-credentials: false
+      - name: Validate candidate identity
+        env:
+          HEAD_SHA: ${{ inputs.head }}
+          GH_TOKEN: ${{ github.token }}
+        run: python3 trusted/scripts/upstream_generated.py verify
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ inputs.head }}
+          path: candidate
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Generate without repository secrets or write credentials
+        working-directory: candidate
+        run: |
+          python3 scripts/build.py icons
+          if ! git diff --quiet -- common/assets/icon_glyphs.yaml components/espcontrol/icons.h src/webserver/generated/icons.ts; then
+            npm ci
+            python3 scripts/build.py www
+          fi
+      - name: Export generated data
+        working-directory: candidate
+        run: python3 ../trusted/scripts/upstream_generated.py export ../generated.json
+      - uses: actions/upload-artifact@v7
+        with:
+          name: generated-data
+          path: generated.json
+          retention-days: 1
+
+  publish:
+    needs: generate
+    if: github.repository == 'gage006/espcontrol' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: generated-data
+          path: artifact
+      - name: Publish allowlisted data using trusted code only
+        env:
+          HEAD_SHA: ${{ inputs.head }}
+          GH_TOKEN: ${{ secrets.UPSTREAM_SYNC_TOKEN }}
+        run: python3 scripts/upstream_generated.py publish artifact/generated.json
