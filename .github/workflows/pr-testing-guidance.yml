@@ -15,13 +15,15 @@ concurrency:
 jobs:
   guidance:
     name: Generate Testing Guidance
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       pull-requests: read
     steps:
       - uses: actions/checkout@v7.0.1
         with:
+          # Generate bot comments from reviewed code and its trusted dependencies.
+          ref: ${{ github.event.pull_request.base.sha }}
           persist-credentials: false
 
       - name: Collect changed files
@@ -31,10 +33,50 @@ jobs:
           gh api \
             "repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files" \
             --paginate \
-            --jq '.[].filename' > changed-files.txt
+            --jq '.[].filename | @json' > changed-files.jsonl
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          paths = []
+          with Path("changed-files.jsonl").open(encoding="utf-8") as filenames:
+              for line in filenames:
+                  # Filenames are untrusted: keep each on one line inside Markdown
+                  # code spans, and prevent mentions from becoming bot commands.
+                  path = json.dumps(json.loads(line), ensure_ascii=True)[1:-1]
+                  paths.append(path.replace("`", r"\u0060").replace("@", r"\u0040"))
+          Path("changed-files.txt").write_text("\n".join(paths) + "\n")
+          PY
 
       - name: Generate testing guidance
-        run: python3 scripts/pr_testing_guidance.py --changed-files changed-files.txt --output pr-testing-guidance.md
+        run: |
+          python3 scripts/pr_testing_guidance.py --changed-files changed-files.txt --output pr-testing-guidance.md
+          python3 - <<'PY'
+          from pathlib import Path
+          import sys
+
+          sys.path.insert(0, "scripts")
+          from device_profiles import load_device_profiles
+
+          known = set(load_device_profiles())
+          paths = Path("changed-files.txt").read_text().splitlines()
+          devices = set()
+          for path in paths:
+              parts = path.split("/")
+              if parts[0] == "devices" and len(parts) >= 3:
+                  devices.add(parts[1])
+              elif path.startswith("product/v2/devices/") and path.endswith(".json"):
+                  devices.add(Path(path).stem)
+              elif parts[0] == "builds" and len(parts) == 2 and path.endswith(".yaml"):
+                  devices.add(Path(path).stem.removesuffix(".factory").removesuffix(".recovery"))
+          added = sorted(devices - known)
+          if added:
+              note = ["", "## New or renamed devices", "",
+                      "These devices are absent from the PR base and require device testing before merge:"]
+              note.extend(f"- `{slug}`" for slug in added)
+              with Path("pr-testing-guidance.md").open("a", encoding="utf-8") as output:
+                  output.write("\n".join(note) + "\n")
+          PY
 
       - name: Add guidance to workflow summary
         run: cat pr-testing-guidance.md >> "$GITHUB_STEP_SUMMARY"
@@ -48,7 +90,7 @@ jobs:
   comment:
     name: Post Testing Guidance
     needs: guidance
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       issues: write
