@@ -2669,7 +2669,7 @@ export const CARD_CONTRACT_CARDS: Readonly<Record<string, CardTypeSpec>> = {
       },
       {
         "name": "media_now_playing_controls",
-        "label": "Controls",
+        "label": "Tile Display",
         "kind": "choice",
         "values": [
           "",
@@ -2679,6 +2679,26 @@ export const CARD_CONTRACT_CARDS: Readonly<Record<string, CardTypeSpec>> = {
         "defaultValue": "",
         "storageField": "precision",
         "omitDefault": true,
+        "applicability": [
+          {
+            "source": "field",
+            "name": "sensor",
+            "operator": "equals",
+            "value": "now_playing"
+          }
+        ]
+      },
+      {
+        "name": "media_tap_action",
+        "label": "Tap Action",
+        "kind": "choice",
+        "values": [
+          "none",
+          "play_pause",
+          "seek"
+        ],
+        "defaultValue": "none",
+        "omitDefault": false,
         "applicability": [
           {
             "source": "field",
@@ -2938,6 +2958,7 @@ export const CARD_CONTRACT_CARDS: Readonly<Record<string, CardTypeSpec>> = {
       },
       "unknownOptions": "drop",
       "canonicalOptionOrder": [
+        "media_tap_action",
         "label_display",
         "number_display",
         "cover_art_details",
@@ -4833,6 +4854,7 @@ export const CARD_CONTRACT_OPTION_NAMES: Readonly<Record<string, string>> = {
   "media_mode": "media_mode",
   "media_now_playing_controls": "media_now_playing_controls",
   "media_tabs": "media_tabs",
+  "media_tap_action": "media_tap_action",
   "number_display": "number_display",
   "on_pattern": "on_pattern",
   "pass64": "pass64",

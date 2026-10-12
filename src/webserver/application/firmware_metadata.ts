@@ -1,7 +1,7 @@
 import { deviceId } from "../device_config";
 
 export const FIRMWARE_VERSION_METADATA_PATH = "/espcontrol/version";
-export const FIRMWARE_PUBLIC_MANIFEST_BASE = "https://jtenniswood.github.io/espcontrol/firmware/";
+export const FIRMWARE_PUBLIC_MANIFEST_BASE = "https://gage006.github.io/espcontrol/firmware/";
 
 export function isSpecificFirmwareVersion(this: any, version?: any) {
         version = String(version == null ? "" : version).trim();

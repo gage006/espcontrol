@@ -449,7 +449,8 @@ inline bool media_driver_handle_click(
     if (volume) media_volume_open_modal(volume);
   } else if (mode == "playlist") {
     send_media_playlist_action(config);
-  } else if (mode == "now_playing" && config.precision == "play_pause") {
+  } else if (mode == "position" ||
+             espcontrol::media::tap_action_from_saved(config) == espcontrol::media::TapAction::PLAY_PAUSE) {
     send_media_playback_action(config.entity, "play_pause");
   } else if (mode == "cover_art") {
     MediaControlCtx *control = button
@@ -471,9 +472,9 @@ inline bool media_driver_subpage_clickable(
     const ParsedCfg &config) {
   const std::string mode = media_card_mode(config.sensor);
   return media_control_modal_mode(mode) || mode == "volume" ||
-         mode == "playlist" || mode == "cover_art" ||
+         mode == "playlist" || mode == "cover_art" || mode == "position" ||
          media_playback_button_mode(mode) ||
-         (mode == "now_playing" && config.precision == "play_pause");
+         espcontrol::media::tap_action_from_saved(config) == espcontrol::media::TapAction::PLAY_PAUSE;
 }
 
 inline bool media_driver_bind_subpage(

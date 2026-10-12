@@ -2678,6 +2678,7 @@ def gen_saved_config_shadow_ts(data):
         "  if (config.sensor === \"now_playing\") config.precision = MEDIA_NOW_PLAYING_CONTROLS.indexOf(config.precision as typeof MEDIA_NOW_PLAYING_CONTROLS[number]) >= 0 ? config.precision : \"\";\n"
         "  else if (MEDIA_STATE_DISPLAY_MODES.indexOf(config.sensor as typeof MEDIA_STATE_DISPLAY_MODES[number]) < 0 || config.precision !== \"state\") config.precision = \"\";\n"
         "  const out: string[] = []; const maxVolume = normalizedMediaVolume(optionValue(source, \"volume_max\"));\n"
+        "  if (config.sensor === \"now_playing\") { const action = optionValue(source, \"media_tap_action\"); if ([\"none\", \"play_pause\", \"seek\"].includes(action)) out.push(\"media_tap_action=\" + action); }\n"
         "  if (config.sensor === \"control_modal\") {\n"
         "    const powerEntity = optionValue(source, \"power_entity\").trim(); if (powerEntity) out.push(\"power_entity=\" + encodeOptionValue(powerEntity));\n"
         "    const tabs = normalizeMediaControlTabs(optionValue(source, \"media_tabs\"), !!powerEntity).join(\"|\"); if (tabs !== normalizeMediaControlTabs(\"\", !!powerEntity).join(\"|\")) out.push(\"media_tabs=\" + encodeOptionValue(tabs));\n"
@@ -2880,6 +2881,7 @@ def gen_saved_config_shadow_h(data):
         "  if (config.sensor == \"now_playing\") { if (!saved_config_shadow_string_in(config.precision, SAVED_CONFIG_SHADOW_MEDIA_NOW_PLAYING_CONTROLS, sizeof(SAVED_CONFIG_SHADOW_MEDIA_NOW_PLAYING_CONTROLS) / sizeof(SAVED_CONFIG_SHADOW_MEDIA_NOW_PLAYING_CONTROLS[0]))) config.precision.clear(); }\n",
         "  else if (!saved_config_shadow_string_in(config.sensor, SAVED_CONFIG_SHADOW_MEDIA_STATE_DISPLAY_MODES, sizeof(SAVED_CONFIG_SHADOW_MEDIA_STATE_DISPLAY_MODES) / sizeof(SAVED_CONFIG_SHADOW_MEDIA_STATE_DISPLAY_MODES[0])) || config.precision != \"state\") config.precision.clear();\n",
         "  std::string out; const int max_volume = saved_config_shadow_media_volume(cfg_option_value(source, \"volume_max\"));\n",
+        "  if (config.sensor == \"now_playing\") { const std::string action = cfg_option_value(source, \"media_tap_action\"); if (action == \"none\" || action == \"play_pause\" || action == \"seek\") saved_config_shadow_append_option(out, \"media_tap_action\", action); }\n",
         "  if (config.sensor == \"control_modal\") {\n",
         "    const std::string power_entity = saved_config_shadow_trim(cfg_option_value(source, \"power_entity\")); if (!power_entity.empty()) saved_config_shadow_append_option(out, \"power_entity\", power_entity);\n",
         "    const std::string tabs = espcontrol::media::normalize_control_tabs_value(cfg_option_value(source, \"media_tabs\"), !power_entity.empty()); if (tabs != espcontrol::media::normalize_control_tabs_value(\"\", !power_entity.empty())) saved_config_shadow_append_option(out, \"media_tabs\", tabs);\n",

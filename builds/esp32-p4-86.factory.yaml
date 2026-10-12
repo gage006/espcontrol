@@ -21,10 +21,10 @@ esphome:
     version: "${firmware_version}"
 
 dashboard_import:
-  package_import_url: github://jtenniswood/espcontrol/devices/esp32-p4-86/esphome.yaml@main
+  package_import_url: github://gage006/espcontrol/devices/esp32-p4-86/esphome.yaml@main
 
 web_server:
   port: 80
   version: 3
-  js_url: https://jtenniswood.github.io/espcontrol/webserver/www.js?device=${device_slug}&v=${firmware_version}&ui=20260714-shared
+  js_url: https://gage006.github.io/espcontrol/webserver/www.js?device=${device_slug}&v=${firmware_version}&ui=20260714-shared
   js_include: "../docs/public/webserver/embedded/www.js"
