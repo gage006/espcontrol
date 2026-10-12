@@ -10,11 +10,13 @@ from generate_media_lifecycle_integration import definition
 root = Path(__file__).resolve().parents[2]
 headers = root / "components/espcontrol"
 media = (headers / "button_grid_media.h").read_text(encoding="utf-8")
+grid = (headers / "button_grid_grid.h").read_text(encoding="utf-8")
 driver = (headers / "button_grid_media_driver.h").read_text(encoding="utf-8")
 config = (headers / "button_grid_media_config.h").read_text(encoding="utf-8")
 sliders = (headers / "button_grid_sliders.h").read_text(encoding="utf-8")
 slider_context = sliders.split("struct SliderCtx {", 1)[1].split("\n};", 1)[0]
 source = r'''
+#include <algorithm>
 #include <cassert>
 #include <cstdint>
 #include <string>
@@ -38,6 +40,7 @@ struct lv_event_t { lv_obj_t *target; void *data; };
 constexpr int LV_PART_MAIN = 0, LV_STATE_CHECKED = 1, LV_OBJ_FLAG_CLICKABLE = 1;
 constexpr int LV_OBJ_FLAG_HIDDEN = 2, LV_ALIGN_TOP_LEFT = 0, LV_ALIGN_BOTTOM_LEFT = 1;
 constexpr int LV_EVENT_CLICKED = 1, LV_EVENT_RELEASED = 2, LV_EVENT_VALUE_CHANGED = 3;
+constexpr int LV_OPA_COVER = 255, LV_OPA_TRANSP = 0;
 void lv_obj_add_flag(lv_obj_t *o, int f) { if (f == LV_OBJ_FLAG_CLICKABLE) o->clickable = true; }
 void lv_obj_clear_flag(lv_obj_t *o, int f) { if (f == LV_OBJ_FLAG_CLICKABLE) o->clickable = false; }
 void *lv_obj_get_user_data(lv_obj_t *o) { return o->data; }
@@ -48,6 +51,11 @@ lv_obj_t *lv_obj_get_parent(lv_obj_t *o) { return o->parent; }
 lv_obj_t *lv_obj_get_child(lv_obj_t *o, int n) { return o->children.at(n); }
 void lv_obj_add_event_cb(lv_obj_t *o, void (*fn)(lv_event_t *), int code, void *data) {
   o->callbacks.push_back({fn, code, data});
+}
+void lv_obj_remove_event_cb(lv_obj_t *o, void (*fn)(lv_event_t *)) {
+  auto &callbacks = o->callbacks;
+  callbacks.erase(std::remove_if(callbacks.begin(), callbacks.end(),
+    [fn](const Callback &callback) { return callback.fn == fn; }), callbacks.end());
 }
 void emit(lv_obj_t *o, int code) {
   for (const auto &cb : o->callbacks) if (cb.code == code) {
@@ -61,6 +69,19 @@ lv_obj_t *lv_label_create(lv_obj_t *parent) {
 void lv_obj_set_style_text_font(lv_obj_t *, const lv_font_t *, int) {}
 void lv_obj_set_style_text_color(lv_obj_t *, lv_color_t, int) {}
 void lv_obj_set_style_bg_color(lv_obj_t *, lv_color_t, int) {}
+void lv_obj_set_style_opa(lv_obj_t *, int, int) {}
+void lv_obj_set_style_bg_opa(lv_obj_t *, int, int) {}
+void lv_obj_set_style_pad_all(lv_obj_t *, int, int) {}
+void lv_obj_set_style_radius(lv_obj_t *, int, int) {}
+void lv_obj_clear_state(lv_obj_t *, int) {}
+void sync_card_checked_text_color(lv_obj_t *) {}
+void set_card_disabled_state(lv_obj_t *, bool) {}
+int lv_obj_get_child_cnt(lv_obj_t *o) { return static_cast<int>(o->children.size()); }
+void lv_obj_del(lv_obj_t *o) {
+  auto &children = o->parent->children;
+  children.erase(std::find(children.begin(), children.end(), o));
+  delete o;
+}
 lv_color_t lv_color_hex(uint32_t color) { return color; }
 int lv_obj_get_style_radius(lv_obj_t *, int) { return 20; }
 void lv_obj_move_foreground(lv_obj_t *) {}
@@ -108,14 +129,25 @@ void send_media_volume_action(const std::string &, int) { assert(false); }
 namespace espcontrol::media { enum class TapAction : uint8_t { NONE, PLAY_PAUSE, SEEK };
 '''
 source += definition(config, "tap_action_from_saved")[1] + "\n}\n"
-for name in ("setup_media_slider_layout", "setup_media_position_layout"):
+for name in ("setup_media_slider_layout", "media_position_label_clicked_cb", "setup_media_position_layout"):
     line, body = definition(media, name)
     source += f'\n#line {line} "button_grid_media.h"\n{body}\n'
 source += r'''
-struct Context {};
+struct Context { bool media = true; };
+struct BtnSlot {
+  lv_obj_t *btn = nullptr, *icon_lbl = nullptr, *sensor_container = nullptr;
+  lv_obj_t *text_lbl = nullptr, *subpage_lbl = nullptr;
+};
 struct MediaControlCtx {};
 struct MediaVolumeCtx {};
-bool media_driver_matches(const Context &) { return true; }
+bool media_driver_matches(const Context &context) { return context.media; }
+void grid_prepare_media_runtime_for_visual_reset(lv_obj_t *owner) {
+  // The real runtime hook retires the current slider before retained labels are reused.
+  for (auto *child : owner->children) if (child->data) {
+    delete static_cast<SliderCtx *>(child->data);
+    child->data = nullptr;
+  }
+}
 bool media_control_modal_mode(const std::string &s) { return s == "control_modal"; }
 bool media_playback_button_mode(const std::string &s) { return s == "play_pause" || s == "previous" || s == "next"; }
 MediaControlCtx *grid_media_control_runtime_for_owner(lv_obj_t *) { return nullptr; }
@@ -123,13 +155,19 @@ void media_control_open_modal(MediaControlCtx *) { assert(false); }
 void media_volume_open_modal(MediaVolumeCtx *) { assert(false); }
 void send_media_playlist_action(const ParsedCfg &) { assert(false); }
 '''
-for name in ("media_driver_handle_click", "media_driver_handle_main_click", "media_driver_subpage_clickable"):
+for name in ("media_driver_cleanup", "media_driver_handle_click", "media_driver_handle_main_click", "media_driver_subpage_clickable"):
     line, body = definition(driver, name)
     source += f'\n#line {line} "button_grid_media_driver.h"\n{body}\n'
+for name in ("card_slot_static_child", "reset_card_slot_dynamic_children"):
+    line, body = definition(grid, name)
+    source += f'\n#line {line} "button_grid_grid.h"\n{body}\n'
 source += r'''
 int main() {
   ParsedCfg saved;
   lv_obj_t card, icon, label;
+  card.children = {&icon, &label};
+  icon.parent = label.parent = &card;
+  BtnSlot slot{&card, &icon, nullptr, &label, nullptr};
   auto *slider = setup_media_position_layout(&card, &icon, &label, saved,
     0xFF8C00, 0x313131, nullptr, 0xFFFFFF, {});
   auto *ctx = static_cast<SliderCtx *>(slider->data);
@@ -165,8 +203,28 @@ int main() {
   assert(media_driver_subpage_clickable(saved));
   media_driver_handle_main_click({}, saved, &card);
   assert(play_pauses == 5);
-  delete ctx;
-  for (auto *child : card.children) delete child;
+  // A rebuild keeps the static label while replacing its slider context.
+  for (int i = 0; i < 3; ++i) {
+    assert(media_driver_cleanup(slot, saved, {}));
+    reset_card_slot_dynamic_children(slot);
+    assert(label.callbacks.empty() && !label.clickable);
+    emit(&label, LV_EVENT_CLICKED); // The freed context must have no callback left.
+    assert(play_pauses == 5 + i);
+    saved.sensor = "position";
+    saved.entity = "media_player.rebuilt" + std::to_string(i);
+    slider = setup_media_position_layout(&card, &icon, &label, saved,
+      0xFF8C00, 0x313131, nullptr, 0xFFFFFF, {});
+    assert(label.callbacks.size() == 1 && label.clickable);
+    emit(&label, LV_EVENT_CLICKED);
+    assert(play_pauses == 6 + i && action_entity == saved.entity);
+  }
+  // Cleanup also runs when the replacement card belongs to another driver.
+  assert(!media_driver_cleanup(slot, saved, {false}));
+  reset_card_slot_dynamic_children(slot);
+  assert(label.callbacks.empty() && !label.clickable);
+  emit(&label, LV_EVENT_CLICKED);
+  assert(play_pauses == 8);
+  assert((card.children == std::vector<lv_obj_t *>{&icon, &label}));
 }
 '''
 with tempfile.TemporaryDirectory(prefix="media-position-tap-") as directory:

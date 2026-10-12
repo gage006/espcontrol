@@ -2590,6 +2590,13 @@ inline lv_obj_t *setup_media_slider_layout(lv_obj_t *btn, lv_obj_t *icon_lbl,
   return slider;
 }
 
+inline void media_position_label_clicked_cb(lv_event_t *event) {
+  SliderCtx *ctx = static_cast<SliderCtx *>(lv_event_get_user_data(event));
+  if (ctx && ctx->available && !ctx->entity_id.empty()) {
+    send_media_playback_action(ctx->entity_id, "play_pause");
+  }
+}
+
 inline lv_obj_t *setup_media_position_layout(lv_obj_t *btn, lv_obj_t *icon_lbl,
                                              lv_obj_t *text_lbl,
                                              const ParsedCfg &p,
@@ -2619,12 +2626,7 @@ inline lv_obj_t *setup_media_position_layout(lv_obj_t *btn, lv_obj_t *icon_lbl,
   for (lv_obj_t *label : {value_lbl, text_lbl}) {
     if (!label || !ctx) continue;
     lv_obj_add_flag(label, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_add_event_cb(label, [](lv_event_t *event) {
-      SliderCtx *ctx = static_cast<SliderCtx *>(lv_event_get_user_data(event));
-      if (ctx && ctx->available && !ctx->entity_id.empty()) {
-        send_media_playback_action(ctx->entity_id, "play_pause");
-      }
-    }, LV_EVENT_CLICKED, ctx);
+    lv_obj_add_event_cb(label, media_position_label_clicked_cb, LV_EVENT_CLICKED, ctx);
   }
   return slider;
 }

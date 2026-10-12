@@ -129,6 +129,10 @@ inline bool media_driver_refresh_layout(
 inline bool media_driver_cleanup(
     BtnSlot &slot, const ParsedCfg &config, const Context &context) {
   (void) config;
+  if (slot.text_lbl) {
+    lv_obj_remove_event_cb(slot.text_lbl, media_position_label_clicked_cb);
+    lv_obj_clear_flag(slot.text_lbl, LV_OBJ_FLAG_CLICKABLE);
+  }
   grid_prepare_media_runtime_for_visual_reset(slot.btn);
   if (!media_driver_matches(context)) return false;
   if (slot.btn) lv_obj_set_user_data(slot.btn, nullptr);
