@@ -31,10 +31,12 @@ New or renamed devices absent from the trusted base are identified from escaped
 device, profile, and build paths and explicitly included in device-testing notes.
 
 No force-push or squash merge is used. Conflicts outside the retained workflow
-directory stop the run and leave `main` unchanged. A separate recovery PR exposes
+directory leave `main` unchanged. A separate recovery PR exposes
 conflicting upstream changes with the same trusted workflow directory, without
 resetting the integration branch. Existing open recovery PRs are reused and never
-automatically merged.
+automatically merged. Once the recovery PR exists, the run succeeds with a
+waiting-for-manual-resolution summary. Errors creating or validating that PR
+still fail the run.
 
 The `Generate Upstream Outputs` workflow is dispatched only on trusted `main`.
 Its read-only job checks out the candidate without persisted credentials and
@@ -97,7 +99,8 @@ graph and documentation build; this does not add full device firmware compiles.
 Schedules are approximate and may be delayed by GitHub. Public-repository
 schedules can be disabled after 60 days without repository activity; re-enable
 the workflow from Actions if that occurs. Disable `Upstream Sync` in Actions
-to pause it. Check failed-run notifications for conflicts or expired tokens.
+to pause it. Check open recovery PRs for conflicts and failed-run notifications
+for API, publishing, or token errors.
 The workflow does not update local clones, publish releases, or close issues.
 
 CI, testing guidance, and upstream automation use the pinned `ubuntu-24.04`

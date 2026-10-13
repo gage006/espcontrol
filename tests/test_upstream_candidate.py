@@ -429,8 +429,7 @@ class CandidateTests(unittest.TestCase):
 
         with patch.object(sync, "api", side_effect=self.remote_api), self.local_network_git(), \
                 patch.dict(os.environ, environment), chdir(self.repository):
-            with self.assertRaises(sync.CandidateConflict):
-                sync.main()
+            sync.main()
 
         branch = f"sync/upstream-conflict-{upstream}"
         self.assert_published_workflows_are_trusted(branch)
@@ -439,6 +438,14 @@ class CandidateTests(unittest.TestCase):
         self.remote_git("merge-base", "--is-ancestor", upstream, head)
         self.assertEqual(self.remote_git("rev-parse", "refs/heads/main"), self.base)
         self.assertEqual(self.remote_git("show-ref", "--verify", f"refs/heads/{sync.BRANCH}", check=False), "")
+
+        refs_before = self.remote_git("show-ref")
+        with patch.object(sync, "api", side_effect=self.remote_api), self.local_network_git(), \
+                patch.dict(os.environ, environment), chdir(self.repository), \
+                patch.object(sync, "recovery_pull", side_effect=RuntimeError("Recovery publication failed")):
+            with self.assertRaisesRegex(RuntimeError, "Recovery publication failed"):
+                sync.main()
+        self.assertEqual(self.remote_git("show-ref"), refs_before)
 
     def test_unsafe_existing_recovery_ref_cannot_open_a_new_pr(self):
         self.write(".github/workflows/unsafe.yaml", "name: Unreviewed Workflow\n")
