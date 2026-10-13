@@ -302,7 +302,7 @@ jobs:
         if: steps.stable.outputs.has-stable == 'true'
         run: |
           MISSING=false
-          OPTIONAL_FIRMWARE_SLUGS="guition-esp32-p4-jc8012p4a1 guition-esp32-p4-jc8012p4a1-v2 guition-esp32-p4-jc8012p4a1-v3 guition-esp32-p4-jc1060p470-v2 esp32-p4-86"
+          OPTIONAL_FIRMWARE_SLUGS="guition-esp32-p4-jc8012p4a1 guition-esp32-p4-jc8012p4a1-v2 guition-esp32-p4-jc8012p4a1-v3 guition-esp32-p4-jc1060p470-v2 esp32-p4-86 guition-esp32-p4-jc4880p443-v3"
           for SLUG in $DEVICE_SLUGS; do
             MANIFEST="firmware/${SLUG}/manifest.json"
             if [ ! -f "$MANIFEST" ]; then
