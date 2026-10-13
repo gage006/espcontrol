@@ -157,6 +157,7 @@ export const SAVED_CONFIG_SHADOW_PILOT_POLICIES: Readonly<Record<string, CardNor
     },
     "unknownOptions": "drop",
     "canonicalOptionOrder": [
+      "media_tap_action",
       "label_display",
       "number_display",
       "cover_art_details",
@@ -444,6 +445,7 @@ export function normalizeSavedConfigMediaShadow(input: Partial<CardConfig>): Car
   if (config.sensor === "now_playing") config.precision = MEDIA_NOW_PLAYING_CONTROLS.indexOf(config.precision as typeof MEDIA_NOW_PLAYING_CONTROLS[number]) >= 0 ? config.precision : "";
   else if (MEDIA_STATE_DISPLAY_MODES.indexOf(config.sensor as typeof MEDIA_STATE_DISPLAY_MODES[number]) < 0 || config.precision !== "state") config.precision = "";
   const out: string[] = []; const maxVolume = normalizedMediaVolume(optionValue(source, "volume_max"));
+  if (config.sensor === "now_playing") { const action = optionValue(source, "media_tap_action"); if (["none", "play_pause", "seek"].includes(action)) out.push("media_tap_action=" + action); }
   if (config.sensor === "control_modal") {
     const powerEntity = optionValue(source, "power_entity").trim(); if (powerEntity) out.push("power_entity=" + encodeOptionValue(powerEntity));
     const tabs = normalizeMediaControlTabs(optionValue(source, "media_tabs"), !!powerEntity).join("|"); if (tabs !== normalizeMediaControlTabs("", !!powerEntity).join("|")) out.push("media_tabs=" + encodeOptionValue(tabs));

@@ -30,7 +30,7 @@ function expectedProfiles() {
 function expectedFirmwareVersions() {
   const source = fs.readFileSync(BUILD_SCRIPT_PATH, "utf8");
   const match = source.match(
-    /^WEB_ASSET_SUPPORTED_FIRMWARE_VERSIONS = \(\n([\s\S]*?)^\)/m,
+    /^WEB_ASSET_SUPPORTED_FIRMWARE_VERSIONS = \(\r?\n([\s\S]*?)^\)/m,
   );
   assert(match, "build source must declare web asset firmware versions");
   return [...match[1].matchAll(/"([^"]+)"/g)].map((item) => item[1]);
@@ -134,7 +134,11 @@ function verifyManifest(webRoot) {
 
 async function verifyBridge() {
   const manifest = readJson(path.join(WEB_ROOT, "web-assets.json"));
-  const stableVersion = manifest.bundles[2].firmwareVersions.find(
+  const stableBundle = manifest.bundles.find((bundle) =>
+    bundle.firmwareVersions.some((version) => /^v\d+\.\d+\.\d+$/.test(version)),
+  );
+  assert(stableBundle, "web asset manifest must declare a stable firmware version");
+  const stableVersion = stableBundle.firmwareVersions.find(
     (version) => /^v\d+\.\d+\.\d+$/.test(version),
   );
   assert(stableVersion, "web asset manifest must declare a stable firmware version");
@@ -178,8 +182,8 @@ async function verifyBridge() {
   vm.runInContext(fs.readFileSync(path.join(WEB_ROOT, "www.js"), "utf8"), sandbox);
   await new Promise((resolve) => setImmediate(resolve));
   assert(releaseLoaded.length === 1, "web bridge must load the supported stable firmware bundle");
-  assert(releaseLoaded[0] === `https://assets.example/webserver/${manifest.bundles[2].path}?device=esp32-p4-86&v=${stableVersion}`,
-    "web bridge must select the retained bundle for an explicitly requested stable firmware version");
+  assert(releaseLoaded[0] === `https://assets.example/webserver/${stableBundle.path}?device=esp32-p4-86&v=${stableVersion}`,
+    "web bridge must select the matching bundle for an explicitly requested stable firmware version");
 
   let fallbackStarts = 0;
   sandbox.__ESPCONTROL_START_EMBEDDED__ = () => { fallbackStarts += 1; };

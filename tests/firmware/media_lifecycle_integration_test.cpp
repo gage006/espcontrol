@@ -26,12 +26,15 @@ struct lv_obj_t {
 };
 struct lv_timer_t { unsigned id; void (*callback)(lv_timer_t *); void *user_data; };
 constexpr int LV_EVENT_DELETE = 1, LV_EVENT_SIZE_CHANGED = 2, LV_PART_MAIN = 0;
+constexpr int LV_OBJ_FLAG_CLICKABLE = 1;
 static unsigned next_id = 0;
 static std::vector<lv_timer_t *> timers;
 static int live_widgets = 0, live_sliders = 0, live_now_playing = 0;
 
 void *lv_obj_get_user_data(lv_obj_t *obj) { return obj->user_data; }
 void lv_obj_set_user_data(lv_obj_t *obj, void *data) { obj->user_data = data; }
+void lv_obj_clear_flag(lv_obj_t *, int) {}
+void media_position_label_clicked_cb(lv_event_t *) {}
 void *lv_event_get_user_data(lv_event_t *event) { return event->user_data; }
 lv_obj_t *lv_event_get_target(lv_event_t *event) { return event->target; }
 void *lv_timer_get_user_data(lv_timer_t *timer) { return timer->user_data; }
@@ -42,6 +45,12 @@ void lv_obj_remove_event_cb_with_user_data(lv_obj_t *obj, EventCallback callback
   auto &events = obj->events;
   events.erase(std::remove_if(events.begin(), events.end(), [=](const Event &event) {
     return event.callback == callback && event.user_data == data;
+  }), events.end());
+}
+void lv_obj_remove_event_cb(lv_obj_t *obj, EventCallback callback) {
+  auto &events = obj->events;
+  events.erase(std::remove_if(events.begin(), events.end(), [=](const Event &event) {
+    return event.callback == callback;
   }), events.end());
 }
 void send_event(lv_obj_t *obj, int code) {
