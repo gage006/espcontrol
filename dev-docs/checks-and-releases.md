@@ -190,6 +190,13 @@ still private. Publication occurs only after the complete remote inventory
 matches the verified local distribution. Any build, upload, or verification
 failure leaves the release as a draft.
 
+Release preflight uses the check graph from the workflow's current revision,
+pointed at the selected tag's source. Checked-in generated outputs and the web
+asset manifest are verified before release preparation changes them. Firmware
+Compile, nightly builds, and release builds report application headroom before
+removing build caches, and fail if an image exceeds the smallest OTA slot or
+its size cannot be measured.
+
 Current generated-output ownership is listed in
 [Source of Truth Contract](source-of-truth.md); upgrade-sensitive public names
 and formats are listed in [Compatibility Contract](compatibility-contract.md).
