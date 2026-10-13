@@ -821,11 +821,22 @@ def test_public_pages_verification() -> None:
             thread.join(timeout=5)
 
 
+def test_pages_optional_manifest_checks_agree() -> None:
+    workflow = PAGES_WORKFLOW.read_text(encoding="utf-8")
+    before = re.search(r'OPTIONAL_FIRMWARE_SLUGS="([^"]+)"', workflow)
+    after = re.search(r'--optional-stable-slugs ([^\n]+)', workflow)
+    assert before and after, "Pages must declare both optional-manifest checks"
+    assert set(before.group(1).split()) == set(after.group(1).split()), (
+        "Pre-deployment and public firmware checks must allow the same missing manifests"
+    )
+
+
 def main() -> int:
     test_esphome_env_format()
     test_release_workflow_uses_current_ota_output()
     test_device_matrix_sparse_checkouts_include_product_model()
     test_pages_excludes_draft_prereleases()
+    test_pages_optional_manifest_checks_agree()
     test_release_skill_creates_selected_tag_before_draft()
     test_valid_files_and_directory()
     test_web_bundle_compatibility_aliases()
