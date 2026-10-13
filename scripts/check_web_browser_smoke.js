@@ -6132,7 +6132,7 @@ async function assertHostedCompatibility(browser) {
   const firmwareBody = "test firmware download";
   let releaseDownload;
   const downloadReady = new Promise(resolve => { releaseDownload = resolve; });
-  await context.route("https://jtenniswood.github.io/**/*.ota.bin", async route => {
+  await context.route("https://gage006.github.io/**/*.ota.bin", async route => {
     await downloadReady;
     return route.fulfill({
       status: 200,
@@ -6190,6 +6190,7 @@ async function assertHostedCompatibility(browser) {
     await page.locator("#sp-fw-previous-panel .sp-fw-btn").click();
     await page.waitForFunction(() => window.__compatRequests.some(item => item.url.endsWith(".ota.bin")));
     const download = await page.evaluate(() => window.__compatRequests.find(item => item.url.endsWith(".ota.bin")));
+    assert(download.url.startsWith("https://gage006.github.io/espcontrol/firmware/"), "firmware downloads use the fork release site");
     assert.equal(download.credentials, "omit", "public firmware downloads must not include browser credentials");
     await page.evaluate(() => window.__seedEspState([
       { id: "update-firmware__update", state: "NO UPDATE", current_version: "v1.12.0", latest_version: "v1.13.0" },
@@ -6213,7 +6214,7 @@ async function assertFirmwareRetryFeedback(browser) {
   for (const action of ["check", "install", "check_then_install"]) {
     const context = await browser.newContext({ viewport: testCase.viewport });
     await installRoutes(context, testCase.slug, { nativeState: nativeConfigState(testCase.slug) });
-    await context.route("https://jtenniswood.github.io/**/*.ota.bin", route => route.fulfill({
+    await context.route("https://gage006.github.io/**/*.ota.bin", route => route.fulfill({
       status: 503, headers: { "Access-Control-Allow-Origin": "*" }, body: "Unavailable",
     }));
     const page = await context.newPage();

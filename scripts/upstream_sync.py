@@ -338,7 +338,8 @@ def main():
             head = candidate_commit(directory, base, upstream, current)
         except CandidateConflict:
             recovery_pull(upstream, base)
-            raise
+            report("Upstream conflicts are tracked by a recovery PR; main is unchanged. Waiting for manual resolution.")
+            return
         publish_candidate(directory, BRANCH, head, base, current)
     if api(f"{root}/git/ref/heads/{BRANCH}")["object"]["sha"] != head:
         report("Sync branch changed after publication; waiting for the next run.")
