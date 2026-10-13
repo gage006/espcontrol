@@ -26,12 +26,15 @@ struct lv_obj_t {
 };
 struct lv_timer_t { unsigned id; void (*callback)(lv_timer_t *); void *user_data; };
 constexpr int LV_EVENT_DELETE = 1, LV_EVENT_SIZE_CHANGED = 2, LV_PART_MAIN = 0;
+constexpr int LV_OBJ_FLAG_CLICKABLE = 1;
 static unsigned next_id = 0;
 static std::vector<lv_timer_t *> timers;
 static int live_widgets = 0, live_sliders = 0, live_now_playing = 0;
 
 void *lv_obj_get_user_data(lv_obj_t *obj) { return obj->user_data; }
 void lv_obj_set_user_data(lv_obj_t *obj, void *data) { obj->user_data = data; }
+void lv_obj_clear_flag(lv_obj_t *, int) {}
+void media_position_label_clicked_cb(lv_event_t *) {}
 void *lv_event_get_user_data(lv_event_t *event) { return event->user_data; }
 lv_obj_t *lv_event_get_target(lv_event_t *event) { return event->target; }
 void *lv_timer_get_user_data(lv_timer_t *timer) { return timer->user_data; }
@@ -42,6 +45,12 @@ void lv_obj_remove_event_cb_with_user_data(lv_obj_t *obj, EventCallback callback
   auto &events = obj->events;
   events.erase(std::remove_if(events.begin(), events.end(), [=](const Event &event) {
     return event.callback == callback && event.user_data == data;
+  }), events.end());
+}
+void lv_obj_remove_event_cb(lv_obj_t *obj, EventCallback callback) {
+  auto &events = obj->events;
+  events.erase(std::remove_if(events.begin(), events.end(), [=](const Event &event) {
+    return event.callback == callback;
   }), events.end());
 }
 void send_event(lv_obj_t *obj, int code) {
@@ -151,8 +160,11 @@ std::string media_card_mode(const std::string &sensor) { return sensor; }
 bool media_playback_button_mode(const std::string &mode) { return mode == "play_pause"; }
 bool media_control_modal_mode(const std::string &mode) { return mode == "control_modal"; }
 struct lv_font_t {};
-constexpr unsigned DEFAULT_SLIDER_COLOR = 0;
-struct CardPalette { bool has_on = false; unsigned on_val = 0, off_val = 0, sensor_val = 0; };
+constexpr unsigned DEFAULT_ACCENT_COLOR = 0;
+struct CardPalette {
+  bool custom_background = false, has_on = false;
+  unsigned on_val = 0, off_val = 0, sensor_val = 0, progress_val = 0;
+};
 enum class DisplayModalLayoutFamily { COMPACT_PORTRAIT };
 struct DisplayProfile { struct { DisplayModalLayoutFamily layout_family; } modal{}; };
 struct GridConfig {};
@@ -167,8 +179,11 @@ FONT_STUB(display_media_cover_art_artist_font)
 FONT_STUB(display_media_title_font)
 FONT_STUB(display_media_cover_art_title_font)
 int display_main_width_percent(const DisplayProfile &) { return 100; }
-void setup_media_card(BtnSlot &slot, const ParsedCfg &config, unsigned, unsigned, unsigned,
-                      const lv_font_t *, const lv_font_t *, const lv_font_t *, int, int, int) {
+static unsigned visual_progress_color = 0, visual_background_color = 0;
+void setup_media_card(BtnSlot &slot, const ParsedCfg &config, unsigned, unsigned, unsigned background_color,
+                      const lv_font_t *, const lv_font_t *, const lv_font_t *, int, int, int, bool, unsigned progress_color) {
+  visual_progress_color = progress_color;
+  visual_background_color = background_color;
   lv_obj_t *slider = nullptr;
   if (config.sensor != "cover_art") {
     slider = create_widget(slot.btn);
@@ -230,6 +245,7 @@ void grid_delete_media_playlist_runtime_ptr(void *) { CHECK(false); }
 bool media_play_pause_show_state(const ParsedCfg &) { CHECK(false); return false; }
 std::string media_cover_art_secondary_entity(const ParsedCfg &) { CHECK(false); return {}; }
 void subscribe_media_cover_art(MediaNowPlayingCtx *, const std::string &) {}
+void media_cover_art_unregister_theme(MediaNowPlayingCtx *) {}
 template<typename... T> MediaPlaylistCtx *create_media_playlist_context(T...) { CHECK(false); return nullptr; }
 template<typename... T> MediaVolumeCtx *create_media_volume_context(T...) { CHECK(false); return nullptr; }
 template<typename... T> MediaPlaylistCtx *media_driver_track_playlist(T...) { CHECK(false); return nullptr; }
@@ -253,7 +269,8 @@ struct Card {
   ConfigText config;
   BtnSlot slot;
   Context context;
-  Card(const std::string &mode, Surface surface) {
+  CardPalette palette;
+  Card(const std::string &mode, Surface surface, CardPalette colors = {}) : palette(colors) {
     config.state.sensor = mode;
     context.surface = surface;
     slot.config = &config;
@@ -263,7 +280,7 @@ struct Card {
   }
   void setup() {
     CHECK(espcontrol::cards::media_driver_setup_visual(
-      slot, config.state, context, CardPalette{}, DisplayProfile{}));
+      slot, config.state, context, palette, DisplayProfile{}));
   }
   SliderCtx *slider() {
     auto *widget = config.state.sensor == "now_playing" || config.state.sensor == "cover_art"
@@ -374,8 +391,23 @@ void test_slider_deleted_before_owner(const std::string &mode, Surface surface) 
   }
   check_retired();
 }
+void test_custom_progress_palette(const std::string &mode, Surface surface) {
+  CardPalette palette;
+  palette.has_on = palette.custom_background = true;
+  palette.on_val = palette.off_val = palette.sensor_val = 0xFFFFFF;
+  palette.progress_val = 0xB3B3B3;
+  {
+    Card card(mode, surface, palette);
+    CHECK(visual_progress_color == 0xB3B3B3);
+    CHECK(visual_background_color == 0xFFFFFF);
+  }
+  check_retired();
+}
+
 int main() {
   for (const std::string mode : {"position", "now_playing"}) {
+    test_custom_progress_palette(mode, Surface::MAIN_GRID);
+    test_custom_progress_palette(mode, Surface::SUBPAGE);
     test_rebuild_before_binding(mode);
     test_repeated_binding(mode, Surface::MAIN_GRID);
     test_repeated_binding(mode, Surface::SUBPAGE);

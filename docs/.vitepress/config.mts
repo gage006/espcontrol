@@ -343,7 +343,14 @@ export default defineConfig({
               { text: 'V1', link: '/screens/jc1060p470-v1' },
             ],
           },
-          { text: '4.3-inch JC4880P443', link: '/screens/jc4880p443' },
+          {
+            text: '4.3-inch JC4880P443',
+            collapsed: true,
+            items: [
+              { text: 'Original', link: '/screens/jc4880p443' },
+              { text: 'V3', link: '/screens/jc4880p443-v3' },
+            ],
+          },
           { text: '4-inch ESP32-P4 86', link: '/screens/p4-86' },
           { text: '4-inch 4848S040', link: '/screens/4848s040' },
           { text: 'Printable Stands', link: '/reference/3d-printable-stands' },
@@ -450,14 +457,8 @@ export default defineConfig({
       {
         text: 'Community',
         items: [
-          {
-            text: 'Contributing',
-            link: '/reference/contributing',
-            collapsed: true,
-            items: [
-              { text: 'Collect USB Logs', link: '/reference/collect-usb-logs' },
-            ],
-          },
+          { text: 'Contributing', link: '/reference/contributing' },
+          { text: 'Collect USB Logs', link: '/reference/collect-usb-logs' },
         ],
       },
       {

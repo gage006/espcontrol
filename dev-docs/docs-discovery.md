@@ -16,7 +16,7 @@ table and navigation on mobile as well as desktop.
 Generated fragments under `docs/generated/` are include-only. Publish useful
 reference material through a described, linked wrapper such as
 `docs/reference/card-capabilities.md`. Runtime coverage belongs in
-`dev-docs/generated/card-runtime-coverage.md`. Do not hand-edit generated tables.
+`compatibility/fixtures/card_runtime_coverage.md`. Do not hand-edit generated tables.
 
 Retired URLs in `docs/.vitepress/discovery.ts` get immediate HTML redirects with
 a canonical destination, `noindex`, and a visible fallback link. GitHub Pages

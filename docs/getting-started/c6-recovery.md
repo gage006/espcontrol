@@ -18,6 +18,10 @@ The recovery download contains both the latest EspControl firmware and its match
 C6 firmware. The P4 transfers the C6 update internally, so the repair does **not**
 need working Wifi or internet access after the USB download has completed.
 
+Recovery firmware keeps USB recovery progress, warnings and errors while using
+INFO-level logging to fit the C6 image in the existing OTA partition. Its Cover
+Art title uses fewer shading levels; the glyphs, font size and layout stay the same.
+
 ::: warning This reinstalls EspControl
 Export your configuration from **Settings > Backup** first when the panel is still
 accessible. Recovery normally preserves saved configuration, but preservation
@@ -39,6 +43,11 @@ cannot be guaranteed after damaged or previously erased flash.
 
 After the restart, reconnect the panel to Wifi if needed and confirm that it stays
 available in Home Assistant.
+
+Recovery firmware keeps progress messages, warnings and errors in the USB log,
+but omits detailed debug logging to make room for the bundled C6 firmware.
+The large cover-art title also uses slightly less font smoothing. Installing
+normal EspControl firmware restores the usual logging and font smoothing.
 
 ## If Recovery Cannot Communicate with the C6
 

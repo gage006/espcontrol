@@ -726,6 +726,12 @@
           "label": "Large Clock",
           "kind": "flag",
           "omitDefault": true
+        },
+        {
+          "name": "center_clock",
+          "label": "Center Clock",
+          "kind": "flag",
+          "omitDefault": true
         }
       ],
       "normalization": {
@@ -741,7 +747,7 @@
           "options": { "policy": "hook", "hook": "normalize_date_time_options" }
         },
         "unknownOptions": "drop",
-        "canonicalOptionOrder": ["large_numbers"],
+        "canonicalOptionOrder": ["large_numbers", "center_clock"],
         "optionHook": "normalize_date_time_options"
       },
       "default": {
@@ -869,7 +875,7 @@
           "name": "climate_tabs",
           "label": "Visible Tabs",
           "kind": "text",
-          "defaultValue": "temperature|mode|preset|fan|swing",
+          "defaultValue": "temperature|mode|preset|fan|swing|horizontal_swing",
           "omitDefault": true
         }
       ],
@@ -1663,51 +1669,95 @@
     "media": {
       "label": "Media",
       "allowInSubpage": true,
-      "domains": ["media_player"],
+      "domains": [
+        "media_player"
+      ],
       "options": [
         {
           "name": "media_mode",
           "label": "Type",
           "kind": "choice",
-          "values": ["control_modal", "speaker_group", "play_pause", "previous", "next", "volume", "position", "now_playing", "cover_art", "playlist"],
+          "values": [
+            "control_modal",
+            "speaker_group",
+            "play_pause",
+            "previous",
+            "next",
+            "volume",
+            "position",
+            "now_playing",
+            "cover_art",
+            "playlist"
+          ],
           "defaultValue": "play_pause",
           "storageField": "sensor",
           "omitDefault": false,
-          "aliases": { "controls": "play_pause" }
+          "aliases": {
+            "controls": "play_pause"
+          }
         },
         {
           "name": "media_display",
           "label": "Type",
           "kind": "choice",
-          "values": ["", "state"],
+          "values": [
+            "",
+            "state"
+          ],
           "defaultValue": "",
           "storageField": "precision",
           "omitDefault": true,
           "applicability": [
-            { "source": "field", "name": "sensor", "operator": "in", "value": ["play_pause", "position"] }
+            {
+              "source": "field",
+              "name": "sensor",
+              "operator": "in",
+              "value": [
+                "play_pause",
+                "position"
+              ]
+            }
           ]
         },
         {
           "name": "media_now_playing_controls",
           "label": "Tile Display",
           "kind": "choice",
-          "values": ["", "progress", "play_pause"],
+          "values": [
+            "",
+            "progress",
+            "play_pause"
+          ],
           "defaultValue": "",
           "storageField": "precision",
           "omitDefault": true,
           "applicability": [
-            { "source": "field", "name": "sensor", "operator": "equals", "value": "now_playing" }
+            {
+              "source": "field",
+              "name": "sensor",
+              "operator": "equals",
+              "value": "now_playing"
+            }
           ]
         },
         {
           "name": "media_tap_action",
           "label": "Tap Action",
           "kind": "choice",
-          "values": ["none", "play_pause", "seek"],
+          "values": [
+            "none",
+            "play_pause",
+            "seek"
+          ],
           "defaultValue": "none",
           "omitDefault": false,
           "applicability": [
-            { "source": "field", "name": "sensor", "operator": "equals", "value": "now_playing" }
+            {
+              "source": "field",
+              "name": "sensor",
+              "operator": "equals",
+              "value": "now_playing"
+            }
           ]
         },
         {
@@ -1716,7 +1766,12 @@
           "kind": "flag",
           "omitDefault": true,
           "applicability": [
-            { "source": "field", "name": "sensor", "operator": "equals", "value": "cover_art" }
+            {
+              "source": "field",
+              "name": "sensor",
+              "operator": "equals",
+              "value": "cover_art"
+            }
           ]
         },
         {
@@ -1725,7 +1780,12 @@
           "kind": "text",
           "omitDefault": true,
           "applicability": [
-            { "source": "field", "name": "sensor", "operator": "equals", "value": "cover_art" }
+            {
+              "source": "field",
+              "name": "sensor",
+              "operator": "equals",
+              "value": "cover_art"
+            }
           ]
         },
         {
@@ -1738,7 +1798,17 @@
           "defaultValue": "100",
           "omitDefault": true,
           "applicability": [
-            { "source": "field", "name": "sensor", "operator": "in", "value": ["control_modal", "cover_art", "speaker_group", "volume"] }
+            {
+              "source": "field",
+              "name": "sensor",
+              "operator": "in",
+              "value": [
+                "control_modal",
+                "cover_art",
+                "speaker_group",
+                "volume"
+              ]
+            }
           ]
         },
         {
@@ -1747,29 +1817,96 @@
           "kind": "text",
           "omitDefault": true,
           "applicability": [
-            { "source": "field", "name": "sensor", "operator": "in", "value": ["control_modal", "cover_art", "speaker_group"] }
+            {
+              "source": "field",
+              "name": "sensor",
+              "operator": "in",
+              "value": [
+                "control_modal",
+                "cover_art",
+                "speaker_group"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "power_entity",
+          "label": "Power Entity",
+          "kind": "text",
+          "omitDefault": true,
+          "applicability": [
+            {
+              "source": "field",
+              "name": "sensor",
+              "operator": "in",
+              "value": [
+                "control_modal",
+                "cover_art"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "media_tabs",
+          "label": "Modal Tabs",
+          "kind": "text",
+          "values": [
+            "controls",
+            "progress",
+            "volume",
+            "speakers",
+            "power"
+          ],
+          "defaultValue": "controls|progress|volume|speakers",
+          "omitDefault": true,
+          "applicability": [
+            {
+              "source": "field",
+              "name": "sensor",
+              "operator": "in",
+              "value": [
+                "control_modal",
+                "cover_art"
+              ]
+            }
           ]
         },
         {
           "name": "label_display",
           "label": "Label Display",
           "kind": "choice",
-          "values": ["label", "status"],
+          "values": [
+            "label",
+            "status"
+          ],
           "defaultValue": "status",
           "omitDefault": true,
           "applicability": [
-            { "source": "field", "name": "sensor", "operator": "equals", "value": "control_modal" }
+            {
+              "source": "field",
+              "name": "sensor",
+              "operator": "equals",
+              "value": "control_modal"
+            }
           ]
         },
         {
           "name": "number_display",
           "label": "Top Left Display",
           "kind": "choice",
-          "values": ["icon", "volume"],
+          "values": [
+            "icon",
+            "volume"
+          ],
           "defaultValue": "icon",
           "omitDefault": true,
           "applicability": [
-            { "source": "field", "name": "sensor", "operator": "equals", "value": "control_modal" }
+            {
+              "source": "field",
+              "name": "sensor",
+              "operator": "equals",
+              "value": "control_modal"
+            }
           ]
         },
         {
@@ -1778,7 +1915,12 @@
           "kind": "text",
           "omitDefault": true,
           "applicability": [
-            { "source": "field", "name": "sensor", "operator": "equals", "value": "playlist" }
+            {
+              "source": "field",
+              "name": "sensor",
+              "operator": "equals",
+              "value": "playlist"
+            }
           ]
         },
         {
@@ -1790,7 +1932,12 @@
           "docsHidden": true,
           "omitDefault": true,
           "applicability": [
-            { "source": "field", "name": "sensor", "operator": "equals", "value": "playlist" }
+            {
+              "source": "field",
+              "name": "sensor",
+              "operator": "equals",
+              "value": "playlist"
+            }
           ]
         },
         {
@@ -1799,7 +1946,12 @@
           "kind": "text",
           "omitDefault": true,
           "applicability": [
-            { "source": "field", "name": "sensor", "operator": "equals", "value": "playlist" }
+            {
+              "source": "field",
+              "name": "sensor",
+              "operator": "equals",
+              "value": "playlist"
+            }
           ]
         },
         {
@@ -1808,24 +1960,70 @@
           "kind": "flag",
           "omitDefault": true,
           "applicability": [
-            { "source": "field", "name": "sensor", "operator": "in", "value": ["volume", "position"] }
+            {
+              "source": "field",
+              "name": "sensor",
+              "operator": "in",
+              "value": [
+                "volume",
+                "position"
+              ]
+            }
           ]
         }
       ],
       "normalization": {
         "fields": {
-          "entity": { "policy": "keep" },
-          "label": { "policy": "hook", "hook": "normalize_media_fields" },
-          "icon": { "policy": "hook", "hook": "normalize_media_fields" },
-          "icon_on": { "policy": "keep" },
-          "sensor": { "policy": "hook", "hook": "normalize_media_fields" },
-          "unit": { "policy": "keep" },
-          "type": { "policy": "default", "value": "media" },
-          "precision": { "policy": "hook", "hook": "normalize_media_fields" },
-          "options": { "policy": "hook", "hook": "normalize_media_options" }
+          "entity": {
+            "policy": "keep"
+          },
+          "label": {
+            "policy": "hook",
+            "hook": "normalize_media_fields"
+          },
+          "icon": {
+            "policy": "hook",
+            "hook": "normalize_media_fields"
+          },
+          "icon_on": {
+            "policy": "keep"
+          },
+          "sensor": {
+            "policy": "hook",
+            "hook": "normalize_media_fields"
+          },
+          "unit": {
+            "policy": "keep"
+          },
+          "type": {
+            "policy": "default",
+            "value": "media"
+          },
+          "precision": {
+            "policy": "hook",
+            "hook": "normalize_media_fields"
+          },
+          "options": {
+            "policy": "hook",
+            "hook": "normalize_media_options"
+          }
         },
         "unknownOptions": "drop",
-        "canonicalOptionOrder": ["media_tap_action", "label_display", "number_display", "cover_art_details", "cover_art_secondary_entity", "speaker_group_entity", "volume_max", "playlist_content_id", "playlist_content_type", "playlist_player_source", "large_numbers"],
+        "canonicalOptionOrder": [
+          "media_tap_action",
+          "label_display",
+          "number_display",
+          "cover_art_details",
+          "cover_art_secondary_entity",
+          "speaker_group_entity",
+          "power_entity",
+          "media_tabs",
+          "volume_max",
+          "playlist_content_id",
+          "playlist_content_type",
+          "playlist_player_source",
+          "large_numbers"
+        ],
         "optionHook": "normalize_media_options"
       },
       "behavior": {
@@ -1834,7 +2032,10 @@
           "legacyModes": {
             "controls": "play_pause"
           },
-          "stateDisplayModes": ["play_pause", "position"],
+          "stateDisplayModes": [
+            "play_pause",
+            "position"
+          ],
           "playbackServices": {
             "play_pause": "media_player.media_play_pause",
             "previous": "media_player.media_previous_track",
@@ -2335,7 +2536,7 @@
         },
         {
           "name": "image_modal_mode",
-          "label": "Expanded Image",
+          "label": "Image fit",
           "kind": "choice",
           "values": [
             "fill",

@@ -875,6 +875,17 @@ def skipped_result(item: Task, status: str) -> dict[str, object]:
     }
 
 
+def preverified_result(item: Task) -> dict[str, object]:
+    return {
+        "id": item.id,
+        "status": "passed",
+        "duration_seconds": 0.0,
+        "exit_code": 0,
+        "commands": [],
+        "cache": {"state": "preverified"},
+    }
+
+
 def cached_result(item: Task, key: str) -> dict[str, object]:
     return {
         "id": item.id,
@@ -895,6 +906,8 @@ def execute_tasks(
     requested_task: str | None,
     jobs: int = 1,
     no_cache: bool = False,
+    keep_going: bool | None = None,
+    preverified_tasks: set[str] | None = None,
 ) -> tuple[int, dict[str, object]]:
     if jobs < 1:
         raise ConfigurationError("--jobs must be at least 1")
@@ -902,9 +915,21 @@ def execute_tasks(
     run_started = time.monotonic()
     requested_jobs = jobs
     jobs = 1 if profile == "release" else jobs
+    # CI reports every independent failure; release preflight still stops early.
+    keep_going = (profile == "ci" if keep_going is None else keep_going) and profile != "release"
     result_by_id: dict[str, dict[str, object]] = {}
     exit_code = 0
     registry = validate_registry(tuple(selected))
+    preverified_tasks = preverified_tasks or set()
+    selected_ids = {item.id for item in selected}
+    unknown_preverified = preverified_tasks - selected_ids
+    if unknown_preverified:
+        raise ConfigurationError(
+            "preverified tasks are not selected by this run: "
+            + ", ".join(sorted(unknown_preverified))
+        )
+    if preverified_tasks and profile != "release":
+        raise ConfigurationError("--preverified-task is only valid for the release profile")
     controller = ProcessController()
     ci_disabled = os.environ.get("CI", "").lower() == "true"
     cache_enabled = not no_cache and not ci_disabled
@@ -957,15 +982,21 @@ def execute_tasks(
 
     with forward_interrupts(controller):
         if jobs == 1:
-            failed_id: str | None = None
+            failed_ids: set[str] = set()
             for item in selected:
-                if controller.interrupted and failed_id is None:
+                if controller.interrupted or exit_code == 130:
                     result_by_id[item.id] = skipped_result(item, "not_run")
                     exit_code = 130
                     continue
-                if failed_id is not None:
-                    status = "blocked" if depends_on(item.id, failed_id, registry) else "not_run"
-                    result_by_id[item.id] = skipped_result(item, status)
+                if item.id in preverified_tasks:
+                    print(f"\n==> {item.id}\npreverified in an earlier workflow step", flush=True)
+                    result_by_id[item.id] = preverified_result(item)
+                    continue
+                if any(depends_on(item.id, failed_id, registry) for failed_id in failed_ids):
+                    result_by_id[item.id] = skipped_result(item, "blocked")
+                    continue
+                if failed_ids and not keep_going:
+                    result_by_id[item.id] = skipped_result(item, "not_run")
                     continue
                 hit = check_cache(item)
                 if hit is not None:
@@ -977,7 +1008,7 @@ def execute_tasks(
                 result_by_id[item.id] = result
                 task_exit = int(result["exit_code"])
                 if task_exit != 0:
-                    failed_id = item.id
+                    failed_ids.add(item.id)
                     exit_code = 130 if task_exit == 130 else 1
         else:
             pending = list(selected)
@@ -993,7 +1024,13 @@ def execute_tasks(
 
             with ThreadPoolExecutor(max_workers=jobs) as executor:
                 active: dict[Future[tuple[dict[str, object], str]], Task] = {}
-                while (pending or active) and not failed_ids and not controller.interrupted:
+                while (pending or active) and (keep_going or not failed_ids) and not controller.interrupted:
+                    if any(result_by_id[task_id]["exit_code"] == 130 for task_id in failed_ids):
+                        break
+                    for item in list(pending):
+                        if any(depends_on(item.id, failed_id, registry) for failed_id in failed_ids):
+                            result_by_id[item.id] = skipped_result(item, "blocked")
+                            pending.remove(item)
                     passed_ids = {
                         task_id
                         for task_id, result in result_by_id.items()
@@ -1097,6 +1134,7 @@ def execute_tasks(
         "finished_at": utc_now(),
         "duration_seconds": duration,
         "jobs": {"requested": requested_jobs, "used": jobs},
+        "keep_going": keep_going,
         "cache": {
             "enabled": cache_enabled,
             "reason": cache_reason,
@@ -1269,19 +1307,6 @@ def self_test() -> None:
     for task_id in ("config", "model-contract"):
         if "product/v2/product_compatibility.json" not in registry[task_id].inputs:
             raise AssertionError(f"{task_id} cache keys omit compatibility fixtures")
-    if not {
-        "common/**",
-        "components/**",
-        "compatibility/**",
-        "devices/**",
-        "package.json",
-        ".github/workflows/**",
-        "docs/**",
-        "product/**",
-        "scripts/**",
-        "src/**",
-    } <= set(registry["dev-docs"].inputs + registry["dev-docs"].cache_inputs):
-        raise AssertionError("dev-docs cache keys omit runtime validation inputs")
     if not {"c++", "g++", "clang++"} <= set(registry["firmware-parser"].cache_tools):
         raise AssertionError("firmware parser cache keys omit compiler tool versions")
     if "components/artwork_image/artwork_image.cpp" not in registry["cover-art-contract"].inputs:
@@ -1388,6 +1413,52 @@ def self_test() -> None:
         markdown = summary_markdown(summary)
         if "| `blocked` | blocked |" not in markdown:
             raise AssertionError("Markdown summary omits blocked tasks")
+
+        # Multiple roots can fail without preventing unrelated work or allowing
+        # descendants of either failure to run. Exercise both schedulers.
+        for workers in (1, 2):
+            independent_marker = root / f"independent-{workers}"
+            forbidden_marker = root / f"blocked-{workers}"
+            touch_blocked = ((sys.executable, "-c",
+                              f"from pathlib import Path; Path({str(forbidden_marker)!r}).touch()"),)
+            collecting_tasks = [
+                Task("first-failure", ((sys.executable, "-c", "raise SystemExit(7)"),), parallel_safe=True),
+                Task("child", touch_blocked, dependencies=("first-failure",), parallel_safe=True),
+                Task("grandchild", touch_blocked, dependencies=("child",)),
+                Task("second-failure", ((sys.executable, "-c", "raise SystemExit(8)"),)),
+                Task("second-child", touch_blocked, dependencies=("second-failure",)),
+                Task("independent", ((sys.executable, "-c",
+                     f"from pathlib import Path; Path({str(independent_marker)!r}).touch()"),), parallel_safe=True),
+            ]
+            with redirect_stdout(StringIO()):
+                collected_code, collected = execute_tasks(
+                    collecting_tasks, root, profile="ci", domain=None,
+                    requested_task=None, jobs=workers,
+                )
+            collected_statuses = {item["id"]: item["status"] for item in collected["tasks"]}
+            if collected_code != 1 or collected_statuses != {
+                "first-failure": "failed", "child": "blocked", "grandchild": "blocked",
+                "second-failure": "failed", "second-child": "blocked", "independent": "passed",
+            }:
+                raise AssertionError(f"CI did not collect independent failures: {collected_statuses}")
+            if forbidden_marker.exists() or not independent_marker.exists():
+                raise AssertionError("CI ran a blocked task or skipped independent work")
+
+            with redirect_stdout(StringIO()):
+                interrupted_code, interrupted_summary = execute_tasks(
+                    [Task("interrupt", ((sys.executable, "-c", "raise SystemExit(130)"),)),
+                     Task("after-interrupt", ((sys.executable, "-c", "raise SystemExit(0)"),))],
+                    root, profile="ci", domain=None, requested_task=None, jobs=workers,
+                )
+            if interrupted_code != 130 or interrupted_summary["tasks"][1]["status"] != "not_run":
+                raise AssertionError("keep-going must stop when a command is interrupted")
+
+        with redirect_stdout(StringIO()):
+            _, release_failure = execute_tasks(
+                fake_tasks, root, profile="release", domain=None, requested_task=None, keep_going=True,
+            )
+        if release_failure["tasks"][-1]["status"] != "not_run":
+            raise AssertionError("release preflight must retain fail-fast behavior")
 
         missing_code, missing_summary = execute_tasks(
             [Task("missing", (("executable-that-does-not-exist",),))],
@@ -1933,15 +2004,15 @@ def self_test() -> None:
     def task_ids(selected: list[Task]) -> set[str]:
         return {item.id for item in selected}
 
-    docs_selected, _, docs_fallback = changed_plan(["dev-docs/README.md"])
-    if docs_fallback is not None or not {"dev-docs", "docs-build"} <= task_ids(docs_selected):
+    docs_selected, _, docs_fallback = changed_plan(["docs/reference/contributing.md"])
+    if docs_fallback is not None or "docs-build" not in task_ids(docs_selected):
         raise AssertionError("docs-only changes do not select documentation checks")
 
     for maintainer_doc in ("README.md", "DEVELOPERS.md", "product/README.md"):
         maintainer_selected, _, maintainer_fallback = changed_plan([maintainer_doc])
         if (
             maintainer_fallback is not None
-            or not {"dev-docs", "docs-build"} <= task_ids(maintainer_selected)
+            or "docs-build" not in task_ids(maintainer_selected)
         ):
             raise AssertionError(f"{maintainer_doc} does not select maintainer documentation checks")
 
@@ -2125,9 +2196,15 @@ def parse_args() -> argparse.Namespace:
     plan_parser.add_argument("--explain", action="store_true")
     run_parser = subparsers.add_parser("run", help="run the tasks selected by a profile")
     run_parser.add_argument("profile", choices=PROFILES)
+    run_parser.add_argument("--root", type=Path, default=ROOT,
+                            help="repository root where selected task commands run")
     run_parser.add_argument("--domain", choices=DOMAINS)
     run_parser.add_argument("--jobs", type=int, default=1)
     run_parser.add_argument("--no-cache", action="store_true")
+    run_parser.add_argument("--keep-going", action="store_true", default=None,
+                            help="run independent checks after a failure (default for ci; disabled for release)")
+    run_parser.add_argument("--preverified-task", action="append", default=[],
+                            help="mark a release-profile task as passed because an earlier workflow step ran it")
     run_parser.add_argument("--summary-json", type=Path)
     task_parser = subparsers.add_parser("run-task", help="run one task and its dependencies")
     task_parser.add_argument("task_id")
@@ -2172,12 +2249,14 @@ def main() -> int:
             selected = plan(args.profile, args.domain)
             exit_code, summary = execute_tasks(
                 selected,
-                ROOT,
+                args.root,
                 profile=args.profile,
                 domain=args.domain,
                 requested_task=None,
                 jobs=args.jobs,
                 no_cache=args.no_cache,
+                keep_going=args.keep_going,
+                preverified_tasks=set(args.preverified_task),
             )
             print_summary(summary)
             write_summary(summary, args.summary_json)

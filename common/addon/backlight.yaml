@@ -418,6 +418,26 @@ script:
             - script.execute: backlight_apply_brightness
       - lambda: |-
           image_card_resume_pipeline();
+      # Re-arm the cover art delay whenever the display settles back on the plain
+      # active screen while media is playing. The delay timer is armed on wake and
+      # playback edges, but any active transition first runs hide_cover_art_view,
+      # which stops that timer; e.g. closing a modal after a touch wake leaves the
+      # panel on the home screen with no timer and no further edge to restart it
+      # (issue #2129). This landing hook restarts it. Skipped while a modal/alarm
+      # takeover is up, so cover art never appears over an open modal.
+      - if:
+          condition:
+            lambda: |-
+              auto &display = id(espcontrol_app).display();
+              return id(cover_art_screensaver_enabled).state &&
+                     id(cover_art_media_playing) &&
+                     !id(cover_art_media_player_entity).state.empty() &&
+                     display.target_mode_is(espcontrol::DisplayMode::ACTIVE) &&
+                     !display.takeover_active(espcontrol::DisplayTakeoverKind::INTERACTIVE) &&
+                     !display.takeover_active(espcontrol::DisplayTakeoverKind::CRITICAL) &&
+                     !alarm_display_takeover_active();
+          then:
+            - script.execute: cover_art_start_delay
 
   - id: display_mode_effect_setup_dimmed
     mode: restart
@@ -475,14 +495,36 @@ script:
               espcontrol::DisplayRequestSource::SCREEN_SCHEDULE);
           const bool schedule_ended = schedule_was_active && !schedule_night;
 
-          // Entering normal hours is a deliberate scheduled wake. Discard an
-          // automatic sleep request that was hidden beneath the night schedule,
-          // then let the normal idle/presence timers start a fresh cycle.
+          // A scheduled clock is already an idle presentation. Hand it straight
+          // to the current screensaver policy instead of briefly waking the UI.
+          // Inspect the winner before clearing USER_WAKE so both callback orders
+          // preserve a deliberate temporary wake across the schedule boundary.
+          const bool leaving_scheduled_clock = schedule_ended &&
+              controller.target_source_is(espcontrol::DisplayRequestSource::SCREEN_SCHEDULE) &&
+              controller.target_mode_is(espcontrol::DisplayMode::CLOCK);
           if (schedule_ended) {
             id(manual_wake_ms) = 0;
             id(screen_schedule_wake_timeout_check).stop();
             controller.clear(espcontrol::DisplayRequestSource::IDLE_TIMER);
             controller.clear(espcontrol::DisplayRequestSource::PRESENCE_SENSOR);
+            const bool sensor_idle = id(screensaver_mode).state == "sensor" &&
+                                     !id(presence_detected);
+            const bool playback_prevents_sleep =
+                id(cover_art_screensaver_enabled).state &&
+                id(media_player_sleep_prevention_enabled).state &&
+                id(media_player_playing);
+            if (leaving_scheduled_clock && !onboarding &&
+                (id(screensaver_mode).state == "timer" || sensor_idle) &&
+                !playback_prevents_sleep) {
+              const auto idle_mode = id(screensaver_action_clock)
+                  ? espcontrol::DisplayMode::CLOCK
+                  : (id(screensaver_action_dimmed) ? espcontrol::DisplayMode::DIMMED
+                     : (id(screensaver_action_camera) ? espcontrol::DisplayMode::CAMERA
+                                                     : espcontrol::DisplayMode::DISPLAY_OFF));
+              controller.request(sensor_idle ? espcontrol::DisplayRequestSource::PRESENCE_SENSOR
+                                             : espcontrol::DisplayRequestSource::IDLE_TIMER,
+                                 idle_mode);
+            }
           }
 
           set_request(espcontrol::DisplayRequestSource::ONBOARDING, onboarding,
@@ -1553,6 +1595,33 @@ script:
                 brightness: !lambda 'return id(screensaver_clock_target_level);'
                 transition_length: 0s
 
+  # Refresh on entry and at the minute boundary, including time/format changes.
+  - id: clock_screensaver_update_time
+    then:
+      - lambda: |-
+          apply_clock_screensaver_text_color(id(clock_label), id(schedule_clock_text_color).state);
+          apply_clock_screensaver_text_color(id(clock_date_label), id(schedule_clock_text_color).state);
+          auto time = panel_time_or_fallback(id(panel_time).now(), id(homeassistant_time).now());
+          const bool show_date = id(clock_screensaver_show_date).state && time.is_valid();
+          if (show_date) {
+            char date_buf[96];
+            snprintf(date_buf, sizeof(date_buf), "%d %s %d", time.day_of_month,
+                     calendar_month_name(time.month), time.year);
+            lv_label_set_display_text(id(clock_date_label), date_buf);
+            lv_obj_clear_flag(id(clock_date_label), LV_OBJ_FLAG_HIDDEN);
+          } else {
+            lv_obj_add_flag(id(clock_date_label), LV_OBJ_FLAG_HIDDEN);
+          }
+          if (time.is_valid()) {
+            char buf[8];
+            bool use_12h = id(clock_format_12h);
+            format_clock_time_without_suffix(buf, sizeof(buf),
+                                             time.hour, time.minute, use_12h);
+            lv_label_set_text(id(clock_label), buf);
+            position_clock_screensaver_label(id(clock_screensaver), id(clock_label), time.minute,
+                                             show_date ? id(clock_date_label) : nullptr);
+          }
+
   # Show the clock screensaver overlay
   - id: show_clock_view
     mode: restart
@@ -1569,17 +1638,7 @@ script:
           then:
             - lambda: 'navigation_return_home(id(main_page)->obj);'
             - lvgl.widget.hide: dim_screensaver_touch_guard
-            - lambda: |-
-                apply_clock_screensaver_text_color(id(clock_label), id(schedule_clock_text_color).state);
-                auto time = panel_time_or_fallback(id(panel_time).now(), id(homeassistant_time).now());
-                if (time.is_valid()) {
-                  char buf[8];
-                  bool use_12h = id(clock_format_12h);
-                  format_clock_time_without_suffix(buf, sizeof(buf),
-                                                   time.hour, time.minute, use_12h);
-                  lv_label_set_text(id(clock_label), buf);
-                  position_clock_screensaver_label(id(clock_screensaver), id(clock_label), time.minute);
-                }
+            - script.execute: clock_screensaver_update_time
             - script.execute: clock_bar_hide
             - script.wait: clock_bar_hide
             - lambda: |-
@@ -1719,7 +1778,7 @@ script:
           lv_obj_move_foreground(id(clock_screensaver));
 
 # -----------------------------------------------------------------------------
-# Clock screensaver drift update (repositions label for burn-in prevention)
+# Screensaver layering and brightness/image-overlay maintenance
 # -----------------------------------------------------------------------------
 interval:
   - interval: 1s
@@ -1736,18 +1795,6 @@ interval:
                   espcontrol::DisplayMode::CLOCK);
           then:
             - script.execute: clock_screensaver_refresh_brightness
-      - lambda: |-
-          if (!id(espcontrol_app).display().current_mode_is(
-                espcontrol::DisplayMode::CLOCK)) return;
-          apply_clock_screensaver_text_color(id(clock_label), id(schedule_clock_text_color).state);
-          auto time = panel_time_or_fallback(id(panel_time).now(), id(homeassistant_time).now());
-          if (!time.is_valid()) return;
-          char buf[8];
-          bool use_12h = id(clock_format_12h);
-          format_clock_time_without_suffix(buf, sizeof(buf),
-                                           time.hour, time.minute, use_12h);
-          lv_label_set_text(id(clock_label), buf);
-          position_clock_screensaver_label(id(clock_screensaver), id(clock_label), time.minute);
       - if:
           condition:
             lambda: |-

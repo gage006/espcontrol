@@ -10,6 +10,7 @@ Usage:
     python scripts/build.py icons         # sync icons only
     python scripts/build.py i18n          # sync firmware translations only
     python scripts/build.py www           # build www.js only
+    python scripts/build.py portal        # build offline WiFi setup pages only
     python scripts/build.py www --retain-current-bundle  # retain a release bundle
     python scripts/build.py www --legacy-web-manifest PATH  # use the published bundle as the legacy bundle
     python scripts/build.py www --temporary-output DIR  # isolated fresh bundles
@@ -79,7 +80,7 @@ WEB_FIXED_MDI_ICON_CODEPOINTS = {
     "decimal": "F10A1", "domain": "F01D7", "drag": "F01DB", "eye-off-outline": "F06D1",
     "eye-outline": "F06D0", "factory": "F020F", "file": "F0214", "flag": "F023B", "folder-plus": "F0257",
     "form-dropdown": "F1400", "format-text": "F0284", "function": "F0295", "gesture-tap-button": "F12A8",
-    "grid": "F02C1", "home-automation": "F07D1", "home-import-outline": "F0F9C", "hook": "F06E2",
+    "grid": "F02C1", "group": "F02C3", "home-automation": "F07D1", "home-import-outline": "F0F9C", "hook": "F06E2",
     "information-outline": "F02FD", "keyboard-return": "F0311", "label": "F0315", "lightbulb-on": "F06E8",
     "link": "F0337", "loading": "F0772", "map-clock": "F0D1E", "map-marker-path": "F0D20",
     "map-marker-question": "F0F07", "movie": "F0381", "movie-open": "F0FCE", "network": "F06F3",
@@ -2524,6 +2525,7 @@ def gen_saved_config_shadow_ts(data):
         "// Test-only shadow code: production normalization does not call this module.\n"
         "// =============================================================================\n"
         "import type { CardConfig, CardNormalizationSpec, MigrationActionSpec, NormalizationCondition } from \"../contracts/types\";\n"
+        "import { normalizeMediaControlTabs } from \"../model/media_control_tabs\";\n"
         "\n"
         f"export const SAVED_CONFIG_SHADOW_PILOT_POLICIES: Readonly<Record<string, CardNormalizationSpec>> = {json.dumps(policies, indent=2)};\n"
         f"const VACUUM_MIGRATIONS: Readonly<Record<string, MigrationActionSpec>> = {json.dumps(migrations, indent=2)};\n"
@@ -2678,9 +2680,13 @@ def gen_saved_config_shadow_ts(data):
         "  const out: string[] = []; const maxVolume = normalizedMediaVolume(optionValue(source, \"volume_max\"));\n"
         "  if (config.sensor === \"now_playing\") { const action = optionValue(source, \"media_tap_action\"); if ([\"none\", \"play_pause\", \"seek\"].includes(action)) out.push(\"media_tap_action=\" + action); }\n"
         "  if (config.sensor === \"control_modal\") {\n"
+        "    const powerEntity = optionValue(source, \"power_entity\").trim(); if (powerEntity) out.push(\"power_entity=\" + encodeOptionValue(powerEntity));\n"
+        "    const tabs = normalizeMediaControlTabs(optionValue(source, \"media_tabs\"), !!powerEntity).join(\"|\"); if (tabs !== normalizeMediaControlTabs(\"\", !!powerEntity).join(\"|\")) out.push(\"media_tabs=\" + encodeOptionValue(tabs));\n"
+        "    const speakerGroupEntity = optionValue(source, \"speaker_group_entity\").trim(); if (speakerGroupEntity) out.push(\"speaker_group_entity=\" + encodeOptionValue(speakerGroupEntity));\n"
         "    if (optionValue(source, \"label_display\").trim() === \"label\") out.push(\"label_display=label\"); if (optionValue(source, \"number_display\").trim() === \"volume\") out.push(\"number_display=volume\"); if (maxVolume !== MEDIA_VOLUME_DEFAULT) out.push(\"volume_max=\" + maxVolume);\n"
         "  } else if (config.sensor === \"cover_art\") {\n"
         "    if (optionPresent(source, \"cover_art_details\")) out.push(\"cover_art_details\"); const secondaryEntity = optionValue(source, \"cover_art_secondary_entity\").trim(); if (secondaryEntity) out.push(\"cover_art_secondary_entity=\" + encodeOptionValue(secondaryEntity)); const speakerGroupEntity = optionValue(source, \"speaker_group_entity\").trim(); if (speakerGroupEntity) out.push(\"speaker_group_entity=\" + encodeOptionValue(speakerGroupEntity)); if (maxVolume !== MEDIA_VOLUME_DEFAULT) out.push(\"volume_max=\" + maxVolume);\n"
+        "    const powerEntity = optionValue(source, \"power_entity\").trim(); if (powerEntity) out.push(\"power_entity=\" + encodeOptionValue(powerEntity)); const tabs = normalizeMediaControlTabs(optionValue(source, \"media_tabs\"), !!powerEntity).join(\"|\"); if (tabs !== normalizeMediaControlTabs(\"\", !!powerEntity).join(\"|\")) out.push(\"media_tabs=\" + encodeOptionValue(tabs));\n"
         "  } else if (config.sensor === \"playlist\") {\n"
         "    for (const [name, defaultValue] of [[\"playlist_content_id\", \"\"], [\"playlist_content_type\", \"playlist\"], [\"playlist_player_source\", \"\"]] as const) { const value = optionValue(source, name).trim() || defaultValue; if (value && value !== defaultValue) out.push(name + \"=\" + encodeOptionValue(value)); }\n"
         "  } else if (config.sensor === \"volume\" || config.sensor === \"position\") {\n"
@@ -2877,6 +2883,9 @@ def gen_saved_config_shadow_h(data):
         "  std::string out; const int max_volume = saved_config_shadow_media_volume(cfg_option_value(source, \"volume_max\"));\n",
         "  if (config.sensor == \"now_playing\") { const std::string action = cfg_option_value(source, \"media_tap_action\"); if (action == \"none\" || action == \"play_pause\" || action == \"seek\") saved_config_shadow_append_option(out, \"media_tap_action\", action); }\n",
         "  if (config.sensor == \"control_modal\") {\n",
+        "    const std::string power_entity = saved_config_shadow_trim(cfg_option_value(source, \"power_entity\")); if (!power_entity.empty()) saved_config_shadow_append_option(out, \"power_entity\", power_entity);\n",
+        "    const std::string tabs = espcontrol::media::normalize_control_tabs_value(cfg_option_value(source, \"media_tabs\"), !power_entity.empty()); if (tabs != espcontrol::media::normalize_control_tabs_value(\"\", !power_entity.empty())) saved_config_shadow_append_option(out, \"media_tabs\", tabs);\n",
+        "    const std::string speaker_group_entity = saved_config_shadow_trim(cfg_option_value(source, \"speaker_group_entity\")); if (!speaker_group_entity.empty()) saved_config_shadow_append_option(out, \"speaker_group_entity\", speaker_group_entity);\n",
         "    if (saved_config_shadow_trim(cfg_option_value(source, \"label_display\")) == \"label\") saved_config_shadow_append_option(out, \"label_display\", \"label\");\n",
         "    if (saved_config_shadow_trim(cfg_option_value(source, \"number_display\")) == \"volume\") saved_config_shadow_append_option(out, \"number_display\", \"volume\");\n",
         "    if (max_volume != SAVED_CONFIG_SHADOW_MEDIA_VOLUME_DEFAULT) saved_config_shadow_append_option(out, \"volume_max\", std::to_string(max_volume));\n",
@@ -2887,6 +2896,7 @@ def gen_saved_config_shadow_h(data):
         "    const std::string speaker_group_entity = saved_config_shadow_trim(cfg_option_value(source, \"speaker_group_entity\"));\n",
         "    if (!speaker_group_entity.empty()) saved_config_shadow_append_option(out, \"speaker_group_entity\", speaker_group_entity);\n",
         "    if (max_volume != SAVED_CONFIG_SHADOW_MEDIA_VOLUME_DEFAULT) saved_config_shadow_append_option(out, \"volume_max\", std::to_string(max_volume));\n",
+        "    const std::string power_entity = saved_config_shadow_trim(cfg_option_value(source, \"power_entity\")); if (!power_entity.empty()) saved_config_shadow_append_option(out, \"power_entity\", power_entity); const std::string tabs = espcontrol::media::normalize_control_tabs_value(cfg_option_value(source, \"media_tabs\"), !power_entity.empty()); if (tabs != espcontrol::media::normalize_control_tabs_value(\"\", !power_entity.empty())) saved_config_shadow_append_option(out, \"media_tabs\", tabs);\n",
         "  } else if (config.sensor == \"playlist\") {\n",
         "    const std::string content_id = saved_config_shadow_trim(cfg_option_value(source, \"playlist_content_id\"));\n",
         "    const std::string content_type = saved_config_shadow_trim(cfg_option_value(source, \"playlist_content_type\"));\n",
@@ -4209,6 +4219,26 @@ def build_www(
 # Main
 # ===========================================================================
 
+def sync_captive_portal(check_only=False):
+    result = subprocess.run(
+        ["node", str(ROOT / "scripts/captive_portal_assets.js")],
+        cwd=ROOT, capture_output=True, text=True,
+    )
+    if result.returncode:
+        raise BuildError(result.stderr or "Captive portal asset generation failed")
+    dirty = []
+    for relative, generated in json.loads(result.stdout).items():
+        path = ROOT / relative
+        if path.exists() and path.read_text() == generated:
+            continue
+        dirty.append(Path(relative))
+        if check_only:
+            print(f"Stale captive portal asset: {relative}; run python3 scripts/build.py portal")
+        else:
+            write_generated_text(path, generated)
+    return dirty
+
+
 def main():
     global GENERATED_TRANSACTION
     args = sys.argv[1:]
@@ -4252,6 +4282,7 @@ def main():
     try:
         for cmd in commands:
             if cmd == "all":
+                portal_dirty = sync_captive_portal(check_only=check_only)
                 entity_dirty = sync_entity_names(check_only=check_only)
                 i18n_dirty = sync_i18n(check_only=check_only)
                 contract_dirty = sync_card_contract(check_only=check_only)
@@ -4262,16 +4293,24 @@ def main():
                     retain_current_bundle=retain_current_bundle,
                     legacy_web_manifest=legacy_web_manifest,
                 )
-                if check_only and (entity_dirty or i18n_dirty or contract_dirty or device_dirty or icon_dirty or www_dirty):
+                if check_only and (portal_dirty or entity_dirty or i18n_dirty or contract_dirty or device_dirty or icon_dirty or www_dirty):
                     exit_code = 1
-                elif not entity_dirty and not i18n_dirty and not contract_dirty and not device_dirty and not icon_dirty and not www_dirty:
+                elif not portal_dirty and not entity_dirty and not i18n_dirty and not contract_dirty and not device_dirty and not icon_dirty and not www_dirty:
                     print("All outputs are up to date.")
                 else:
                     total = (
                         len(entity_dirty) + len(i18n_dirty) + len(contract_dirty) + len(device_dirty) +
-                        len(icon_dirty) + len(www_dirty)
+                        len(icon_dirty) + len(www_dirty) + len(portal_dirty)
                     )
                     print(f"Updated {total} target(s).")
+            elif cmd == "portal":
+                dirty = sync_captive_portal(check_only=check_only)
+                if check_only and dirty:
+                    exit_code = 1
+                elif not dirty:
+                    print("Captive portal assets are in sync.")
+                else:
+                    print(f"Built {len(dirty)} captive portal asset(s).")
             elif cmd == "entities":
                 dirty = sync_entity_names(check_only=check_only)
                 if check_only and dirty:
@@ -4330,7 +4369,7 @@ def main():
                 print(f"Unknown command: {cmd}")
                 print(
                     "Usage: python scripts/build.py "
-                    "[all|entities|contract|devices|icons|i18n|www] [--check] "
+                    "[all|entities|contract|devices|icons|i18n|portal|www] [--check] "
                     "[--retain-current-bundle] [--legacy-web-manifest PATH]"
                 )
                 exit_code = 1

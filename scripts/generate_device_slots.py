@@ -183,6 +183,7 @@ def package_file_text(device: dict) -> str:
                 package.get("deviceFontPackageKey", "fonts_device"),
                 "!include device/fonts.yaml",
             ),
+            include_line("theme_colors", "!include ../../common/theme/colors.yaml"),
             include_line("button_theme", "!include ../../common/theme/button.yaml"),
             "  # ---------------------------------------------------------------------------",
             "  # Configuration (text/select/number components for web UI)",
@@ -275,12 +276,6 @@ def package_file_text(device: dict) -> str:
                 "    components: [mipi_dsi]",
                 "    refresh: 1s",
                 "",
-                "switch:",
-                "  - id: !extend auto_update_switch",
-                "    restore_mode: ALWAYS_OFF",
-                "  - id: !extend c6_auto_update_switch",
-                "    restore_mode: ALWAYS_OFF",
-                "",
                 "web_server:",
                 "  ota: false",
                 "",
@@ -347,11 +342,19 @@ def cfg_lines(device: dict) -> list[str]:
     image_card_count = int(device["image_slot_capacity"])
     lines = [
         "            GridConfig cfg = {};",
-        f"            cfg.num_slots = {device['slots']};",
     ]
+    if "portrait_slots" not in device:
+        lines.append(f"            cfg.num_slots = {device['slots']};")
     if "portrait_cols" in device:
         lines.append('            bool portrait = id(screen_rotation_select).current_option() == "90" || id(screen_rotation_select).current_option() == "270";')
         lines.append(f"            cfg.cols = portrait ? {device['portrait_cols']} : {device['cols']};")
+        if "portrait_slots" in device:
+            lines.append(f"            cfg.num_slots = portrait ? {device['portrait_slots']} : {device['slots']};")
+            if device["portrait_slots"] < device["slots"]:
+                lines.append("            if (portrait) {")
+                for slot in range(device["portrait_slots"], device["slots"]):
+                    lines.append(f"              lv_obj_add_flag(slots[{slot}].btn, LV_OBJ_FLAG_HIDDEN);")
+                lines.append("            }")
         if device.get("rotate_width_compensation", False):
             lines.append("            cfg.width_compensation_vertical = portrait;")
     else:
@@ -439,6 +442,10 @@ def cfg_lines(device: dict) -> list[str]:
             f"            cfg.media_cover_art_artist_font = id({device['media_cover_art_artist_font']})->get_lv_font();"
         )
     lines.append(f"            cfg.volume_number_font = id({device['volume_number_font']})->get_lv_font();")
+    if device.get("volume_number_compact_font"):
+        lines.append(
+            f"            cfg.volume_number_compact_font = id({device['volume_number_compact_font']})->get_lv_font();"
+        )
     lines.append(f"            cfg.volume_label_font = id({device['volume_label_font']})->get_lv_font();")
     if device.get("climate_card_icon_font"):
         lines.append(

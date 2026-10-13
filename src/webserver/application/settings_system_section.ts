@@ -120,6 +120,8 @@ export function createSettingsSystemSectionFeature(
         fwCheckBtn.addEventListener("click", function (this: any) {
             if (!firmwareUpdateControlsVisible())
                 return;
+            state.firmwareInstallError = "";
+            state.firmwareInstallStatus = "";
             var installAction: any = latestFirmwareInstallAction();
             if (installAction !== "check") {
                 var latestInfo: any = latestFirmwareInfo();
@@ -130,7 +132,6 @@ export function createSettingsSystemSectionFeature(
                 state.firmwareChecking = false;
                 if (installAction === "install") {
                     state.firmwareUpdateState = "INSTALLING";
-                    state.firmwareInstallStatus = "Installing update\u2026";
                     renderFirmwareUpdateStatus();
                     clearFirmwareWebOtaFallback();
                     postFirmwareUpdateInstall();

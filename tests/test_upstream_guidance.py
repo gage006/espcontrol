@@ -34,7 +34,8 @@ class GuidanceWorkflowTests(unittest.TestCase):
         self.checkout = self.directory / "checkout"
         self.checkout.mkdir()
         for name in ("scripts/pr_testing_guidance.py", "scripts/device_profiles.py",
-                     "scripts/product_model_v2.py", "product/model_v2.json"):
+                     "scripts/product_model_v2.py", "product/model_v2.json",
+                     "common/device/screen_clock.yaml"):
             target = self.checkout / name
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(ROOT / name, target)

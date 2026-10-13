@@ -13,7 +13,7 @@ Use Fan cards when you want fan-specific controls. Use [Slider](/card-types/slid
 ## Setting Up a Fan Card
 
 1. Select a card and change its type to **Fans**.
-2. Choose the fan **Type**:
+2. The fan **Type** defaults to **All Controls**. Keep it or choose another type:
    - **All Controls** opens one larger control view with the fan features your Home Assistant integration supports.
    - **Switch** turns the fan on or off.
    - **Speed** lets you drag a vertical slider from 0 to 100 percent.
@@ -37,7 +37,7 @@ Use Fan cards when you want fan-specific controls. Use [Slider](/card-types/slid
 
 ## How It Works on the Panel
 
-- **All Controls** opens a full-screen fan view. It can show tabs for Power, Speed, Preset, Oscillation, Direction, and an optional Light. The panel hides tabs that the selected fan or configured light do not support.
+- **All Controls** keeps the configured label on the tile, or the Home Assistant friendly name when the label is blank. Tapping it opens a full-screen fan view with Power, Speed, Preset, Oscillation, Direction, and an optional Light tab. The panel hides tabs that the selected fan or configured light do not support.
 - **Switch** behaves like a fan-specific Switch card with separate off and on icons.
 - **Speed** behaves like a vertical slider and follows fan speed changes made elsewhere in Home Assistant.
 - **Oscillation** shows and toggles the current oscillation state.

@@ -5,12 +5,12 @@
         v-for="device in devices"
         :key="device.slug"
         class="device-card"
-        :class="{ selected: selectedDevice.slug === device.slug }"
+        :class="{ selected: selectedDevice?.slug === device.slug }"
       >
         <button
           type="button"
           class="device-choice"
-          :aria-pressed="selectedDevice.slug === device.slug"
+          :aria-pressed="selectedDevice?.slug === device.slug"
           @click="selectDevice(device)"
         >
           <span
@@ -39,26 +39,32 @@
         </button>
         <div v-if="device.versions.length > 1" class="device-version">
           <label :for="`${device.slug}-version`">Hardware version</label>
-          <select
-            :id="`${device.slug}-version`"
-            v-model="selectedVersions[device.slug]"
-            :aria-label="`${device.size} hardware version`"
-            :aria-describedby="`${device.slug}-revision`"
-            @change="selectDevice(device)"
-          >
-            <option v-for="version in device.versions" :key="version.slug" :value="version.slug">
-              {{ version.label }}
-            </option>
-          </select>
+          <span class="device-version-control">
+            <select
+              :id="`${device.slug}-version`"
+              v-model="selectedVersions[device.slug]"
+              :aria-label="`${device.size} hardware version`"
+              :aria-describedby="`${device.slug}-revision`"
+              @change="selectDevice(device)"
+            >
+              <option disabled value="">Choose hardware version</option>
+              <option v-for="version in device.versions" :key="version.slug" :value="version.slug">
+                {{ version.label }}
+              </option>
+            </select>
+          </span>
           <span :id="`${device.slug}-revision`" class="device-revision">
-            {{ selectedVersion(device).revision }}
+            {{ selectedVersion(device)?.revision }}
           </span>
         </div>
       </div>
     </div>
 
     <div class="installer-actions">
-      <div v-if="!checked" class="installer-status">
+      <div v-if="!selected" class="installer-status">
+        Choose your display and hardware version above to enable USB installation.
+      </div>
+      <div v-else-if="!checked" class="installer-status">
         Preparing installer...
       </div>
       <div v-else-if="!supported" class="installer-status warning">
@@ -95,6 +101,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { withBase } from 'vitepress'
+import { loadUsbInstaller } from '../usb-installer'
 
 const devices = [
   {
@@ -170,7 +177,14 @@ const devices = [
       {
         slug: 'guition-esp32-p4-jc4880p443',
         number: 1,
-        label: 'V1 — Original panel'
+        label: 'V1 — Original panel',
+        revision: 'ESP32-P4 engineering sample, below v3.0; not SKU V3'
+      },
+      {
+        slug: 'guition-esp32-p4-jc4880p443-v3',
+        number: 3,
+        label: 'V3 — Production silicon',
+        revision: 'SKU 10150002-V3; ESP32-P4 v3.x chip (including v3.2)'
       }
     ]
   },
@@ -218,11 +232,11 @@ const devices = [
   versions: [...device.versions].sort((a, b) => b.number - a.number)
 }))
 
-const selectedDevice = ref(devices[0])
+const selectedDevice = ref(null)
 const selectedVersions = ref(Object.fromEntries(
-  devices.map(device => [device.slug, device.versions[0].slug])
+  devices.map(device => [device.slug, device.versions.length === 1 ? device.versions[0].slug : ''])
 ))
-const selectedVersion = device => device.versions.find(
+const selectedVersion = device => device?.versions.find(
   version => version.slug === selectedVersions.value[device.slug]
 )
 const selected = computed(() => selectedVersion(selectedDevice.value))
@@ -235,7 +249,9 @@ const manifestAvailable = ref(false)
 const loadError = ref('')
 let manifestRequest = 0
 
-const manifestUrl = computed(() => withBase(`/firmware/${selected.value.slug}/manifest.json`))
+const manifestUrl = computed(() => selected.value
+  ? withBase(`/firmware/${selected.value.slug}/manifest.json`)
+  : '')
 
 async function prepareInstaller() {
   const request = ++manifestRequest
@@ -243,6 +259,11 @@ async function prepareInstaller() {
   manifestAvailable.value = false
   ready.value = false
   loadError.value = ''
+
+  if (!manifestUrl.value) {
+    checkingManifest.value = false
+    return
+  }
 
   try {
     const response = await fetch(manifestUrl.value, { cache: 'no-store' })
@@ -262,7 +283,7 @@ async function prepareInstaller() {
   if (request !== manifestRequest || !manifestAvailable.value) return
 
   try {
-    await import('https://unpkg.com/esp-web-tools@10/dist/web/install-button.js')
+    await loadUsbInstaller()
     if (request === manifestRequest) ready.value = true
   } catch (err) {
     if (request === manifestRequest) {
@@ -356,15 +377,34 @@ onMounted(() => {
 .device-version select {
   width: 100%;
   min-width: 0;
-  padding: 8px 10px;
+  padding: 8px 36px 8px 10px;
   border: 1px solid var(--vp-c-border);
   border-radius: 6px;
   color: var(--vp-c-text-1);
   background: var(--vp-c-bg);
   font: inherit;
   font-size: 13px;
-  appearance: auto;
+  appearance: none;
   cursor: pointer;
+}
+
+.device-version-control {
+  position: relative;
+  display: block;
+  min-width: 0;
+}
+
+.device-version-control::after {
+  position: absolute;
+  top: 50%;
+  right: 14px;
+  width: 7px;
+  height: 7px;
+  border-right: 1.5px solid var(--vp-c-text-2);
+  border-bottom: 1.5px solid var(--vp-c-text-2);
+  content: "";
+  pointer-events: none;
+  transform: translateY(-70%) rotate(45deg);
 }
 
 .device-screen {

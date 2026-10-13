@@ -39,6 +39,8 @@ esp32:
       # Keep WiFi startup inside the internal-RAM budget after the RGB display
       # and LVGL buffers are initialized.
       CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM: "8"
+      # The static RX pool of eight requires an RX BA window of at most 16.
+      CONFIG_ESP_WIFI_RX_BA_WIN: "16"
       CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP: "y"
       # Route ordinary allocations larger than 4 KiB to PSRAM while keeping
       # a 32 KiB internal reserve for DMA and cache-disabled operations.
@@ -65,7 +67,7 @@ external_components:
       url: ${espcontrol_component_url}
       ref: ${espcontrol_component_ref}
       path: components
-    components: [espcontrol, web_server_idf, artwork_image, mipi_rgb]
+    components: [espcontrol, captive_portal, web_server_idf, artwork_image, mipi_rgb]
     refresh: 1s
 
 espcontrol:
@@ -406,6 +408,13 @@ touchscreen:
     id: my_touchscreen
     display: my_display
     update_interval: 16ms
+    # Use this panel's native coordinate range instead of the GT911's
+    # auto-detected limits (candidate fix for shifted touches in #2123).
+    calibration:
+      x_min: 0
+      x_max: 480
+      y_min: 0
+      y_max: 480
     transform:
       mirror_x: false
       mirror_y: false

@@ -420,6 +420,15 @@ export const ENTITY_CATALOG = {
         "clock_screensaver_enabled"
       ]
     },
+    "screen_saver_show_date": {
+      "domain": "switch",
+      "name": "Screen Saver: Show Date",
+      "objectIds": [
+        "screen_saver__show_date",
+        "screen_saver_show_date",
+        "clock_screensaver_show_date"
+      ]
+    },
     "screen_saver_clock_overlay": {
       "domain": "switch",
       "name": "Screen Saver: Clock Overlay",
@@ -492,6 +501,34 @@ export const ENTITY_CATALOG = {
         "screen_brightness_mode",
         "brightness_mode"
       ]
+    },
+    "screen_theme_mode": {
+      "domain": "select",
+      "name": "Screen: Theme Mode"
+    },
+    "screen_theme_auto_method": {
+      "domain": "select",
+      "name": "Screen: Theme Auto Method"
+    },
+    "screen_theme_light_start": {
+      "domain": "text",
+      "name": "Screen: Theme Light Start"
+    },
+    "screen_theme_dark_start": {
+      "domain": "text",
+      "name": "Screen: Theme Dark Start"
+    },
+    "screen_theme_sunrise_offset": {
+      "domain": "number",
+      "name": "Screen: Theme Sunrise Offset"
+    },
+    "screen_theme_sunset_offset": {
+      "domain": "number",
+      "name": "Screen: Theme Sunset Offset"
+    },
+    "screen_active_theme": {
+      "domain": "text_sensor",
+      "name": "Screen: Active Theme"
     },
     "screen_schedule_enabled": {
       "domain": "switch",
@@ -782,6 +819,7 @@ export const ENTITY_CATALOG = {
       "screensaver_timeout",
       "home_screen_timeout",
       "screen_saver_clock",
+      "screen_saver_show_date",
       "screen_saver_clock_overlay",
       "screen_timezone",
       "screen_active_timezone",
@@ -796,6 +834,13 @@ export const ENTITY_CATALOG = {
       "wifi_strength",
       "display_backlight",
       "screen_brightness_mode",
+      "screen_theme_mode",
+      "screen_theme_auto_method",
+      "screen_theme_light_start",
+      "screen_theme_dark_start",
+      "screen_theme_sunrise_offset",
+      "screen_theme_sunset_offset",
+      "screen_active_theme",
       "screen_schedule_enabled",
       "screen_schedule_trigger",
       "screen_schedule_sensor_activation",

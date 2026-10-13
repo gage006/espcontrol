@@ -2,13 +2,14 @@
   "schemaVersion": 1,
   "bundles": [
     {
-      "id": "058820d9bc9f902579ec45f877e2335a84b8de064245452f0764f3259b601569",
-      "sha256": "058820d9bc9f902579ec45f877e2335a84b8de064245452f0764f3259b601569",
-      "path": "bundles/058820d9bc9f902579ec45f877e2335a84b8de064245452f0764f3259b601569/www.js",
+      "id": "be809d70be3e7371a4ac79a77a1cf9133332f364c79ab4d465c796cfb16497b5",
+      "sha256": "be809d70be3e7371a4ac79a77a1cf9133332f364c79ab4d465c796cfb16497b5",
+      "path": "bundles/be809d70be3e7371a4ac79a77a1cf9133332f364c79ab4d465c796cfb16497b5/www.js",
       "deviceProfiles": [
         "guition-esp32-p4-jc1060p470",
         "guition-esp32-p4-jc1060p470-v2",
         "guition-esp32-p4-jc4880p443",
+        "guition-esp32-p4-jc4880p443-v3",
         "guition-esp32-p4-jc8012p4a1",
         "guition-esp32-p4-jc8012p4a1-v2",
         "guition-esp32-p4-jc8012p4a1-v3",
@@ -21,13 +22,14 @@
       "webAssetVersion": 2
     },
     {
-      "id": "058820d9bc9f902579ec45f877e2335a84b8de064245452f0764f3259b601569",
-      "sha256": "058820d9bc9f902579ec45f877e2335a84b8de064245452f0764f3259b601569",
-      "path": "bundles/058820d9bc9f902579ec45f877e2335a84b8de064245452f0764f3259b601569/www.js",
+      "id": "be809d70be3e7371a4ac79a77a1cf9133332f364c79ab4d465c796cfb16497b5",
+      "sha256": "be809d70be3e7371a4ac79a77a1cf9133332f364c79ab4d465c796cfb16497b5",
+      "path": "bundles/be809d70be3e7371a4ac79a77a1cf9133332f364c79ab4d465c796cfb16497b5/www.js",
       "deviceProfiles": [
         "guition-esp32-p4-jc1060p470",
         "guition-esp32-p4-jc1060p470-v2",
         "guition-esp32-p4-jc4880p443",
+        "guition-esp32-p4-jc4880p443-v3",
         "guition-esp32-p4-jc8012p4a1",
         "guition-esp32-p4-jc8012p4a1-v2",
         "guition-esp32-p4-jc8012p4a1-v3",
@@ -47,6 +49,7 @@
         "guition-esp32-p4-jc1060p470",
         "guition-esp32-p4-jc1060p470-v2",
         "guition-esp32-p4-jc4880p443",
+        "guition-esp32-p4-jc4880p443-v3",
         "guition-esp32-p4-jc8012p4a1",
         "guition-esp32-p4-jc8012p4a1-v2",
         "guition-esp32-p4-jc8012p4a1-v3",
@@ -70,6 +73,7 @@
         "guition-esp32-p4-jc1060p470",
         "guition-esp32-p4-jc1060p470-v2",
         "guition-esp32-p4-jc4880p443",
+        "guition-esp32-p4-jc4880p443-v3",
         "guition-esp32-p4-jc8012p4a1",
         "guition-esp32-p4-jc8012p4a1-v2",
         "guition-esp32-p4-jc8012p4a1-v3",

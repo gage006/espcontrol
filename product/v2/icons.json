@@ -395,6 +395,11 @@
       "mdi": "broom"
     },
     {
+      "name": "Bus",
+      "codepoint": "F00E7",
+      "mdi": "bus"
+    },
+    {
       "name": "Camera",
       "codepoint": "F0100",
       "mdi": "camera"
@@ -683,6 +688,31 @@
       "name": "Folder Play",
       "codepoint": "F19FA",
       "mdi": "folder-play"
+    },
+    {
+      "name": "Folder Account Outline",
+      "codepoint": "F0B9C",
+      "mdi": "folder-account-outline"
+    },
+    {
+      "name": "Folder Home Outline",
+      "codepoint": "F10B6",
+      "mdi": "folder-home-outline"
+    },
+    {
+      "name": "Folder Key Outline",
+      "codepoint": "F10EC",
+      "mdi": "folder-key-outline"
+    },
+    {
+      "name": "Folder Open Outline",
+      "codepoint": "F0DCF",
+      "mdi": "folder-open-outline"
+    },
+    {
+      "name": "Folder Outline",
+      "codepoint": "F0256",
+      "mdi": "folder-outline"
     },
     {
       "name": "Fountain",
@@ -1628,6 +1658,11 @@
       "name": "Track Light Off",
       "codepoint": "F1B01",
       "mdi": "track-light-off"
+    },
+    {
+      "name": "Train",
+      "codepoint": "F052C",
+      "mdi": "train"
     },
     {
       "name": "Transmission Tower",

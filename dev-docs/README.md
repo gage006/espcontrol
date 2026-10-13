@@ -37,7 +37,7 @@ usage documentation lives in the root `README.md` and under `docs/`.
 ## Subsystems
 
 - [Card Contract](card-contract.md)
-- [Generated Card Runtime Coverage](generated/card-runtime-coverage.md)
+- [Generated Card Runtime Coverage](../compatibility/fixtures/card_runtime_coverage.md)
 - [Card Type Map](card-type-map.md)
 - [Saved-Configuration Normalization](saved-config-normalization.md)
 - [Web Configurator](web-configurator.md)

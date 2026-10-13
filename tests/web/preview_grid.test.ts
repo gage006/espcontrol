@@ -5,6 +5,7 @@ import {
   resizeGridSlot,
   resolveSpanPosition,
 } from "../../src/webserver/features/preview_grid";
+import { applySpans, parseGridOrder, serializeGridOrder } from "../../src/webserver/model/grid";
 
 function equal<T>(actual: T, expected: T, message: string): void {
   if (actual !== expected) throw new Error(`${message}: expected ${String(expected)}, received ${String(actual)}`);
@@ -17,6 +18,44 @@ function deepEqual(actual: unknown, expected: unknown, message: string): void {
 }
 
 export function runPreviewGridTests(): void {
+  const portraitOrder = [19, 20, ...Array.from({ length: 16 }, (_, index) => index + 1), 17, 18];
+  const portraitSizes: Record<string, number> = { "19": 3 };
+  applySpans(portraitOrder, portraitSizes, 18, 3);
+  deepEqual(
+    portraitOrder,
+    [...Array.from({ length: 18 }, (_, index) => index + 1), 19, 20],
+    "portrait span normalization keeps all active slots visible and moves hidden slots to the landscape tail",
+  );
+  equal(portraitSizes["19"], 3, "portrait span normalization preserves hidden slot sizing");
+  equal(
+    serializeGridOrder(portraitOrder, portraitSizes),
+    "1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19w,20",
+    "portrait order serialization retains hidden slots for landscape restoration",
+  );
+
+  const sparsePortraitOrder = [19, ...Array.from({ length: 15 }, (_, index) => index + 1), 0, 0, 16, 17];
+  const sparsePortraitSizes: Record<string, number> = {};
+  applySpans(sparsePortraitOrder, sparsePortraitSizes, 18, 3);
+  deepEqual(
+    sparsePortraitOrder,
+    [...Array.from({ length: 17 }, (_, index) => index + 1), 0, 19, 0],
+    "portrait normalization uses empty prefix cells for visible cards from the landscape tail",
+  );
+
+  const deferredPortraitOrder = parseGridOrder(
+    "19w,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,,,16,17",
+    20,
+    3,
+    {},
+    18,
+  );
+  deepEqual(
+    deferredPortraitOrder.grid,
+    [...Array.from({ length: 17 }, (_, index) => index + 1), 0, 19, 0],
+    "deferred startup parsing normalizes against the active portrait capacity",
+  );
+  equal(deferredPortraitOrder.sizes["19"], 3, "deferred portrait parsing preserves hidden card size");
+
   const duplicateGrid = Array.from({ length: 20 }, (_, index) => index + 1);
   duplicateGrid[1] = 0;
   duplicateGrid[2] = 0;

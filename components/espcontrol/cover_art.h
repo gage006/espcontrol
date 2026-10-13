@@ -382,8 +382,10 @@ struct Layout {
   int title_max_lines{0};
 };
 inline bool rotation_is_landscape(const std::string &slug, const std::string &rotation) {
-  return slug == "guition-esp32-p4-jc4880p443" ? rotation == "90" || rotation == "270"
-                                                : rotation == "0" || rotation == "180";
+  const bool portrait_panel = slug == "guition-esp32-p4-jc4880p443" ||
+                              slug == "guition-esp32-p4-jc4880p443-v3";
+  return portrait_panel ? rotation == "90" || rotation == "270"
+                        : rotation == "0" || rotation == "180";
 }
 inline Layout cover_art_layout(const std::string &slug, const std::string &rotation,
                                int screen_width, int screen_height, int art_size, int title_height) {
@@ -391,7 +393,7 @@ inline Layout cover_art_layout(const std::string &slug, const std::string &rotat
   if (slug == "guition-esp32-p4-jc1060p470" || slug == "guition-esp32-p4-jc1060p470-v2") return landscape
     ? Layout{1024,600,0,0,600,585,0,439,600,615,24,377,440,332,0,true,4}
     : Layout{600,1024,0,0,600,0,600,600,424,30,634,540,360,162,0,true};
-  if (slug == "guition-esp32-p4-jc4880p443") return landscape
+  if (slug == "guition-esp32-p4-jc4880p443" || slug == "guition-esp32-p4-jc4880p443-v3") return landscape
     ? Layout{800,480,0,0,480,480,0,320,480,504,34,272,330,207,0,true,3}
     : Layout{480,800,0,0,480,0,480,480,320,24,514,324,262,130,0,true};
   if (slug == "guition-esp32-p4-jc8012p4a1" || slug == "guition-esp32-p4-jc8012p4a1-v2" ||
@@ -410,7 +412,10 @@ struct PlaybackButtonLayout {
 inline PlaybackButtonLayout playback_button_layout(const Layout &layout, int title_line_height = 0,
                                                    int title_line_space = 0) {
   const int short_side = std::min(layout.screen_width, layout.screen_height);
-  const int size = std::clamp(short_side / 5, 80, 112);
+  const int default_size = std::clamp(short_side / 5, 80, 112);
+  const int size = layout.screen_width == 720 && layout.screen_height == 720
+      ? 144
+      : short_side == 480 && layout.split ? 112 : default_size;
   const int margin = std::clamp(short_side / 20, 24, 40);
   int width = layout.panel_width;
   int height = layout.panel_height;

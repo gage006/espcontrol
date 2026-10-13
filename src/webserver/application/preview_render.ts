@@ -1,8 +1,12 @@
 import { state } from "../state/app_instance";
 import { WEB_UI_COLORS } from "../state/ui_tokens";
+import { PREVIEW_THEME_COLORS, previewEffectiveTheme } from "../state/preview_theme";
+import { configOptionValue, lighterCardColor } from "../model/config_primitives";
 import { escHtml } from "./ui_primitives";
 import {
     buttonConfigDisabledForDevice as isButtonConfigDisabledForDevice,
+    cardPreviewTextColor,
+    cardProgressColor,
     cardTypePickerDetails,
     cardTypePickerOptions,
     defaultCardTypeForPicker,
@@ -19,6 +23,11 @@ import type { ScreenRotationFeature } from "./screen_rotation_state";
 import type { ControlsShellFeature } from "./controls_shell";
 import type { GridFeature } from "./grid";
 import type { ButtonSettingsSelectionFeature } from "./button_settings_selection";
+
+const SENSOR_SURFACE_CARD_TYPES: ReadonlySet<string> = new Set([
+    "sensor", "local_sensor", "door_window", "presence", "weather",
+    "weather_forecast", "calendar", "clock", "timezone",
+]);
 export interface PreviewRenderDependencies {
     readonly updateClockBarItemUi: () => void;
     readonly document: Document;
@@ -90,6 +99,7 @@ export function createPreviewRenderFeature(dependencies: PreviewRenderDependenci
         return buttonTypePickerKeys(!!isSub, null).indexOf(key) >= 0;
     }
     function renderPreview(this: any) {
+        const previewColors = PREVIEW_THEME_COLORS[previewEffectiveTheme(state)];
         dependencies.updateClockBarItemUi();
         var main: any = els.previewMain;
         main.innerHTML = "";
@@ -115,13 +125,20 @@ export function createPreviewRenderFeature(dependencies: PreviewRenderDependenci
                 backBtn.innerHTML =
                     '<span class="sp-btn-icon sp-back-hit mdi mdi-chevron-left"></span>' +
                         '<span class="sp-btn-label">' + escHtml(backLabel) + '</span>';
-                backBtn.style.backgroundColor = "#" + WEB_UI_COLORS.secondary;
+                backBtn.style.backgroundColor = "#" + previewColors.surfaceCard;
                 backBtn.style.cursor = "pointer";
                 backBtn.setAttribute("data-pos", pos);
                 backBtn.draggable = !isConfigLocked();
                 main.appendChild(backBtn);
             }
             else if (slot > 0) {
+                if (slot > c.maxSlots) {
+                    var unavailable: any = document.createElement("div");
+                    unavailable.className = "sp-empty-cell";
+                    unavailable.setAttribute("data-pos", pos);
+                    main.appendChild(unavailable);
+                    continue;
+                }
                 var bIdx: any = slot - 1;
                 if (c.isSub && bIdx >= c.buttons.length)
                     continue;
@@ -141,31 +158,47 @@ export function createPreviewRenderFeature(dependencies: PreviewRenderDependenci
                 }
                 var iconName: any = resolveIcon(b);
                 var label: any = b.label || b.entity || "Configure";
-                var color: any = (b.type === "sensor" || b.type === "local_sensor" || b.type === "door_window" || b.type === "presence" || b.type === "weather" || b.type === "weather_forecast" || b.type === "calendar" || b.type === "clock" || b.type === "timezone")
-                    ? WEB_UI_COLORS.tertiary : WEB_UI_COLORS.secondary;
+                var color: any = SENSOR_SURFACE_CARD_TYPES.has(b.type || "")
+                    ? previewColors.surfaceSensor
+                    : previewColors.surfaceCard;
                 var previewTypeDef: any = dependencies.cards.definitions[b.type || ""] || null;
                 if (previewTypeDef && c.isSub && !buttonTypeRegistryValue(previewTypeDef, "allowInSubpage", false)) {
                     previewTypeDef = null;
                 }
                 var slotSz: any = c.sizes[slot];
+                var cardOffColor: any = configOptionValue(b.options, "card_off_color").replace(/^#/, "").toUpperCase();
+                if (!/^[0-9A-F]{6}$/.test(cardOffColor)) cardOffColor = "";
+                var cardOnColor: any = lighterCardColor(cardOffColor);
                 var typePreview: any = previewTypeDef && previewTypeDef.renderPreview
-                    ? previewTypeDef.renderPreview(b, { escHtml: escHtml, cardSize: slotSz || 1 })
+                    ? previewTypeDef.renderPreview(b, {
+                        escHtml: escHtml, cardSize: slotSz || 1,
+                        cardBackgroundColor: cardOffColor,
+                        cardProgressColor: cardProgressColor(cardOffColor),
+                        cardTextColor: cardOffColor ? cardPreviewTextColor(cardOffColor) : "#" + previewColors.textPrimary,
+                    })
                     : null;
                 var btn: any = document.createElement("div");
                 btn.className = "sp-btn" +
                     (typePreview && typePreview.buttonClass ? " " + typePreview.buttonClass : "") +
                     sizeClass(slotSz) +
                     (c.selected.indexOf(slot) !== -1 ? " sp-selected" : "");
-                btn.style.backgroundColor = "#" + color;
+                btn.style.backgroundColor = "#" + (cardOffColor || color);
+                btn.style.setProperty("--card-active-color", "#" + (cardOnColor || state.onColor || WEB_UI_COLORS.primary));
+                var contrastBackground: any = cardOffColor || color;
                 btn.draggable = !isConfigLocked();
                 btn.setAttribute("data-pos", pos);
                 btn.setAttribute("data-slot", slot);
                 var hasWhenOn: any = !typePreview && (b.sensor || (b.icon_on && b.icon_on !== "Auto"));
                 if (!typePreview && hasWhenOn && typeof cardOnPattern === "function" && cardOnPattern(b) === "stripes") {
-                    var onColor: any = state.onColor && state.onColor.length === 6 ? state.onColor : WEB_UI_COLORS.primary;
+                    var onColor: any = cardOnColor || (state.onColor && state.onColor.length === 6 ? state.onColor : WEB_UI_COLORS.primary);
+                    contrastBackground = onColor;
                     btn.style.backgroundImage =
                         "repeating-linear-gradient(135deg,#" + onColor + " 0,#" + onColor +
                             " 12px,rgba(255,255,255,.22) 12px,rgba(255,255,255,.22) 20px)";
+                }
+                if (!btn.classList.contains("sp-image-card")) {
+                    btn.style.setProperty("--card-text-color", cardOffColor || contrastBackground !== color
+                        ? cardPreviewTextColor(contrastBackground) : "#" + previewColors.textPrimary);
                 }
                 var badgeIcon: any = b.sensor ? "gauge" : "swap-horizontal";
                 var sensorBadge: any = hasWhenOn
