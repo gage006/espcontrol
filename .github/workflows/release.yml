@@ -105,13 +105,15 @@ jobs:
       - name: Install browser runtime
         run: npx playwright install --with-deps chromium
 
-      - name: Verify checked-in generated outputs
+      - name: Verify checked-in release outputs with current tooling
         run: |
-          python3 scripts/build.py --self-test
-          python3 scripts/build.py --check
-
-      - name: Verify checked-in web asset manifest
-        run: node scripts/check_web_asset_manifest.js
+          VALIDATION_ROOT=$(mktemp -d "${RUNNER_TEMP}/espcontrol-release-validation.XXXXXX")
+          git archive HEAD | tar -x -C "${VALIDATION_ROOT}"
+          git -C release-validation-tools archive HEAD scripts | tar -x -C "${VALIDATION_ROOT}"
+          ln -s "${GITHUB_WORKSPACE}/node_modules" "${VALIDATION_ROOT}/node_modules"
+          python3 "${VALIDATION_ROOT}/scripts/build.py" --self-test
+          python3 "${VALIDATION_ROOT}/scripts/build.py" --check
+          node "${VALIDATION_ROOT}/scripts/check_web_asset_manifest.js"
 
       - name: Prepare release web assets
         env:

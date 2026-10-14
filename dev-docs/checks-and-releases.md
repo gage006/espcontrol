@@ -192,7 +192,9 @@ failure leaves the release as a draft.
 
 Release preflight uses the check graph from the workflow's current revision,
 pointed at the selected tag's source. Checked-in generated outputs and the web
-asset manifest are verified before release preparation changes them. Firmware
+asset manifest are verified before release preparation changes them, using
+current validator scripts in a private copy of the tag's source. The original
+tag checkout remains unchanged by validation. Firmware
 Compile, nightly builds, and release builds report application headroom before
 removing build caches, and fail if an image exceeds the smallest OTA slot or
 its size cannot be measured.

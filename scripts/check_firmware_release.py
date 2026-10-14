@@ -9,6 +9,7 @@ import hashlib
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 import io
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -821,7 +822,52 @@ def test_public_pages_verification() -> None:
             thread.join(timeout=5)
 
 
+def test_release_outputs_use_current_validators() -> None:
+    workflow = RELEASE_WORKFLOW.read_text(encoding="utf-8")
+    match = re.search(
+        r"      - name: Verify checked-in release outputs with current tooling\n"
+        r"        run: \|\n((?:          .+\n)+)", workflow)
+    assert match, "Release outputs must be checked with current validators before preparation"
+    command = "\n".join(line[10:] for line in match[1].splitlines())
+    with TemporaryDirectory() as temporary:
+        folder = Path(temporary)
+        release = folder / "release"
+        release.mkdir()
+
+        def git(*args: str, cwd: Path = release) -> subprocess.CompletedProcess:
+            return subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True)
+
+        subprocess.run(["tar", "-x", "-C", str(release)],
+                       input=git("archive", "HEAD", cwd=ROOT).stdout, check=True)
+        git("init", "-q", "--initial-branch=main")
+        git("config", "user.name", "Release Validator Fixture")
+        git("config", "user.email", "fixture@example.com")
+        obsolete_python = 'raise RuntimeError("obsolete tag validator executed")\n'
+        obsolete_js = 'throw Error("obsolete tag validator executed");\n'
+        (release / "scripts/build.py").write_text(obsolete_python)
+        (release / "scripts/check_web_asset_manifest.js").write_text(obsolete_js)
+        git("add", "-A")
+        git("commit", "-qm", "Older tag with obsolete validators")
+        (release / "release-validation-tools").symlink_to(ROOT, target_is_directory=True)
+        (release / "node_modules").symlink_to(ROOT / "node_modules", target_is_directory=True)
+        environment = {**os.environ, "RUNNER_TEMP": str(folder), "GITHUB_WORKSPACE": str(release)}
+
+        def validate() -> subprocess.CompletedProcess:
+            return subprocess.run(["bash", "-eo", "pipefail"], input=command, text=True,
+                                  cwd=release, env=environment, capture_output=True)
+
+        good = validate()
+        assert good.returncode == 0, good.stdout + good.stderr
+        assert (release / "scripts/build.py").read_text() == obsolete_python
+        assert (release / "scripts/check_web_asset_manifest.js").read_text() == obsolete_js
+        (release / "docs/public/webserver/web-assets.json").write_text("{}\n")
+        git("add", "docs/public/webserver/web-assets.json")
+        git("commit", "-qm", "Corrupt tag assets")
+        assert validate().returncode != 0, "Current validators must reject corrupt tag assets"
+
+
 def main() -> int:
+    test_release_outputs_use_current_validators()
     test_esphome_env_format()
     test_release_workflow_uses_current_ota_output()
     test_device_matrix_sparse_checkouts_include_product_model()
