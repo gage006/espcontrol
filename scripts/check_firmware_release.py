@@ -888,6 +888,22 @@ def test_release_outputs_use_current_validators() -> None:
         manifest_path.write_text(json.dumps(manifest))
         assert validate_prepared().returncode != 0, "Prepared compatibility aliases must be revalidated"
 
+        # A live catalogue can rotate away from the checked-in fallback bundle.
+        manifest["bundles"][1]["webAssetVersion"] = 1
+        published_bundle = {**manifest["bundles"][0], "firmwareVersions": [VERSION]}
+        catalogue = folder / "published-web-assets.json"
+        catalogue.write_text(json.dumps({"schemaVersion": 1, "bundles": [published_bundle]}))
+        legacy = {**published_bundle, "firmwareVersions": manifest["bundles"][2]["firmwareVersions"]}
+        manifest["bundles"][2] = legacy
+        manifest["bundles"][3] = {**legacy, "webAssetVersion": 1}
+        manifest_path.write_text(json.dumps(manifest))
+        environment["RELEASE_LEGACY_WEB_MANIFEST"] = str(catalogue)
+        rotated = validate_prepared()
+        assert rotated.returncode == 0, rotated.stdout + rotated.stderr
+        manifest["bundles"][2]["sha256"] = "0" * 64
+        manifest_path.write_text(json.dumps(manifest))
+        assert validate_prepared().returncode != 0, "Rotated legacy metadata must still be verified"
+
 
 def main() -> int:
     test_release_outputs_use_current_validators()
