@@ -132,6 +132,7 @@ jobs:
           LEGACY_WEB_DIR="${RUNNER_TEMP}/espcontrol-published-web"
           LEGACY_WEB_MANIFEST="${LEGACY_WEB_DIR}/web-assets.json"
           LEGACY_WEB_ARGS=()
+          echo "RELEASE_LEGACY_WEB_MANIFEST=" >> "$GITHUB_ENV"
           mkdir -p "${LEGACY_WEB_DIR}"
           if curl -fsSL "https://gage006.github.io/espcontrol/webserver/web-assets.json" \
             -o "${LEGACY_WEB_MANIFEST}"; then
@@ -145,6 +146,7 @@ jobs:
             curl -fsSL "https://gage006.github.io/espcontrol/webserver/${BUNDLE_PATH}" \
               -o "docs/public/webserver/${BUNDLE_PATH}"
             LEGACY_WEB_ARGS=(--legacy-web-manifest "${LEGACY_WEB_MANIFEST}")
+            echo "RELEASE_LEGACY_WEB_MANIFEST=${LEGACY_WEB_MANIFEST}" >> "$GITHUB_ENV"
           else
             echo "::warning::Could not download the published web asset manifest; using the checked-in fallback bundle."
           fi
@@ -161,9 +163,13 @@ jobs:
           cp "docs/public/webserver/${BUNDLE_PATH}" "dist/release-web-assets/${BUNDLE_PATH}"
 
       - name: Verify prepared web assets with current tooling
-        run: >-
-          node release-validation-tools/scripts/check_web_asset_manifest.js
-          --root "${GITHUB_WORKSPACE}"
+        run: |
+          LEGACY_WEB_ARGS=()
+          if [ -n "${RELEASE_LEGACY_WEB_MANIFEST:-}" ]; then
+            LEGACY_WEB_ARGS=(--legacy-web-manifest "${RELEASE_LEGACY_WEB_MANIFEST}")
+          fi
+          node release-validation-tools/scripts/check_web_asset_manifest.js \
+            --root "${GITHUB_WORKSPACE}" "${LEGACY_WEB_ARGS[@]}"
 
       - name: Upload release web assets
         uses: actions/upload-artifact@v7
@@ -175,9 +181,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # Reuse current-tool results: original generated outputs before
+          # preparation, and prepared manifest semantics after preparation.
           python3 release-validation-tools/scripts/check_tasks.py run release \
             --root "${GITHUB_WORKSPACE}" \
-            --preverified-task generated
+            --preverified-task generated \
+            --preverified-task web-asset-manifest
           python3 scripts/check_release_contract.py --github-repository "${GITHUB_REPOSITORY}"
 
   device-matrix:

@@ -47,6 +47,17 @@ function expectedCurrentFirmwareVersion() {
 }
 
 function expectedLegacyBundleId() {
+  const legacyArgument = process.argv.indexOf("--legacy-web-manifest");
+  if (legacyArgument !== -1) {
+    const published = readJson(process.argv[legacyArgument + 1]);
+    const bundle = published.bundles?.find(item =>
+      item.firmwareVersions?.some(version => typeof version === "string" && version !== "dev"));
+    assert(bundle && /^[a-f0-9]{64}$/.test(bundle.id)
+      && bundle.sha256 === bundle.id
+      && bundle.path === `bundles/${bundle.id}/www.js`,
+    "published legacy manifest must declare a content-addressed stable bundle");
+    return bundle.id;
+  }
   const source = fs.readFileSync(BUILD_SCRIPT_PATH, "utf8");
   const match = source.match(/^WEB_ASSET_LEGACY_BUNDLE_ID = "([a-f0-9]{64})"$/m);
   assert(match, "build source must declare the retained legacy web bundle");
@@ -83,6 +94,11 @@ function verifyManifest(webRoot) {
     "current web bundle must retain its compatibility alias");
   assert(legacyBundle.id === expectedLegacyBundleId(),
     "legacy firmware must use the retained pre-change web bundle");
+  assert(legacyBundle.sha256 === legacyBundle.id
+    && legacyBundle.path === `bundles/${legacyBundle.id}/www.js`,
+  "legacy web bundle metadata must match its content address");
+  assert(sha256(fs.readFileSync(path.join(webRoot, legacyBundle.path))) === legacyBundle.id,
+    "legacy web bundle content must match its digest");
   assert(JSON.stringify(legacyBundle.firmwareVersions) === JSON.stringify(legacyFirmwareVersions),
     "legacy web bundle must declare the remaining stable firmware versions");
   assert(legacyBundle.webAssetVersion === 2,

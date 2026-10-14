@@ -197,6 +197,8 @@ asset manifest are verified before release preparation changes them, using
 current validator scripts in a private copy of the tag's source. The original
 tag checkout remains unchanged by validation. After release preparation,
 the current manifest validator checks the prepared assets again before upload.
+It uses the same published catalogue as preparation and verifies the retained
+legacy bundle's metadata and content digest, including catalogue rotation.
 Firmware
 Compile, nightly builds, and release builds report application headroom before
 removing build caches, and fail if an image exceeds the smallest OTA slot or
