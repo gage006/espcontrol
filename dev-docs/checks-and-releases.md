@@ -190,11 +190,14 @@ still private. Publication occurs only after the complete remote inventory
 matches the verified local distribution. Any build, upload, or verification
 failure leaves the release as a draft.
 
-Release preflight uses the check graph from the workflow's current revision,
+Dispatch `Build Release` from `main`, passing the draft tag as `release_tag`;
+dispatching from a tag is rejected. Release preflight uses the check graph from the workflow's current revision,
 pointed at the selected tag's source. Checked-in generated outputs and the web
 asset manifest are verified before release preparation changes them, using
 current validator scripts in a private copy of the tag's source. The original
-tag checkout remains unchanged by validation. Firmware
+tag checkout remains unchanged by validation. After release preparation,
+the current manifest validator checks the prepared assets again before upload.
+Firmware
 Compile, nightly builds, and release builds report application headroom before
 removing build caches, and fail if an image exceeds the smallest OTA slot or
 its size cannot be measured.
