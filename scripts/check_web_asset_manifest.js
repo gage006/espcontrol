@@ -6,7 +6,10 @@ const fs = require("fs");
 const path = require("path");
 const vm = require("vm");
 
-const ROOT = path.resolve(__dirname, "..");
+const rootArgument = process.argv.indexOf("--root");
+const ROOT = rootArgument === -1
+  ? path.resolve(__dirname, "..")
+  : path.resolve(process.argv[rootArgument + 1]);
 const WEB_ROOT = path.join(ROOT, "docs", "public", "webserver");
 const DEVICE_MANIFEST_PATH = path.join(ROOT, "devices", "manifest.json");
 const BUILD_SCRIPT_PATH = path.join(ROOT, "scripts", "build.py");

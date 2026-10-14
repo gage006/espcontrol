@@ -141,7 +141,7 @@ supported release path because a draft release must remain private during the
 build.
 
 ```bash
-gh workflow run release.yml --ref "$TAG" -f release_tag="$TAG"
+gh workflow run release.yml --ref main -f release_tag="$TAG"
 gh run list \
   --workflow release.yml \
   --event workflow_dispatch \

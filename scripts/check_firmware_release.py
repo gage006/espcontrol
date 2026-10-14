@@ -823,12 +823,12 @@ def test_public_pages_verification() -> None:
 
 
 def test_release_outputs_use_current_validators() -> None:
-    workflow = RELEASE_WORKFLOW.read_text(encoding="utf-8")
-    match = re.search(
-        r"      - name: Verify checked-in release outputs with current tooling\n"
-        r"        run: \|\n((?:          .+\n)+)", workflow)
-    assert match, "Release outputs must be checked with current validators before preparation"
-    command = "\n".join(line[10:] for line in match[1].splitlines())
+    import yaml
+    workflow = yaml.safe_load(RELEASE_WORKFLOW.read_text(encoding="utf-8"))
+    commands = {step["name"]: step["run"] for step in workflow["jobs"]["preflight"]["steps"]
+                if "run" in step and "name" in step}
+    command = commands["Verify checked-in release outputs with current tooling"]
+    assert 'gh workflow run release.yml --ref main -f release_tag="$TAG"' in RELEASE_SKILL.read_text()
     with TemporaryDirectory() as temporary:
         folder = Path(temporary)
         release = folder / "release"
@@ -852,6 +852,12 @@ def test_release_outputs_use_current_validators() -> None:
         (release / "node_modules").symlink_to(ROOT / "node_modules", target_is_directory=True)
         environment = {**os.environ, "RUNNER_TEMP": str(folder), "GITHUB_WORKSPACE": str(release)}
 
+        for ref, success in (("refs/heads/main", True), (f"refs/tags/{VERSION}", False)):
+            guard = subprocess.run(["bash", "-eo", "pipefail"], text=True,
+                                   input=commands["Require the current main release workflow"],
+                                   env={**environment, "GITHUB_REF": ref}, capture_output=True)
+            assert (guard.returncode == 0) == success, "Only main may run release publication"
+
         def validate() -> subprocess.CompletedProcess:
             return subprocess.run(["bash", "-eo", "pipefail"], input=command, text=True,
                                   cwd=release, env=environment, capture_output=True)
@@ -864,6 +870,23 @@ def test_release_outputs_use_current_validators() -> None:
         git("add", "docs/public/webserver/web-assets.json")
         git("commit", "-qm", "Corrupt tag assets")
         assert validate().returncode != 0, "Current validators must reject corrupt tag assets"
+
+        # Preparation changes the release tree after the immutable tag check.
+        (release / "scripts/build.py").write_text((ROOT / "scripts/build.py").read_text())
+        manifest_path = release / "docs/public/webserver/web-assets.json"
+        manifest = json.loads((ROOT / "docs/public/webserver/web-assets.json").read_text())
+        manifest_path.write_text(json.dumps(manifest))
+
+        def validate_prepared() -> subprocess.CompletedProcess:
+            return subprocess.run(["bash", "-eo", "pipefail"], text=True,
+                                  input=commands["Verify prepared web assets with current tooling"],
+                                  cwd=release, env=environment, capture_output=True)
+
+        prepared = validate_prepared()
+        assert prepared.returncode == 0, prepared.stdout + prepared.stderr
+        manifest["bundles"][1]["webAssetVersion"] = 99
+        manifest_path.write_text(json.dumps(manifest))
+        assert validate_prepared().returncode != 0, "Prepared compatibility aliases must be revalidated"
 
 
 def main() -> int:
