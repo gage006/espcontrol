@@ -1,4 +1,3 @@
-import { preserveCardColorOptions } from "../model/config_primitives";
 import { configOptionValue, setConfigOptionValue } from "../model/config_primitives";
 import {
     CLIMATE_CONTROL_TABS_OPTION,
@@ -73,9 +72,9 @@ export function createConfigModalTabOptionsFeature(
     }
     function normalizeLightControlOptions(this: any, options?: any) {
         var tabs: any = normalizeLightControlTabs(configOptionValue(options, LIGHT_CONTROL_TABS_OPTION));
-        return preserveCardColorOptions(options, lightControlTabsAreDefault(tabs)
+        return lightControlTabsAreDefault(tabs)
             ? ""
-            : setConfigOptionValue("", LIGHT_CONTROL_TABS_OPTION, tabs.join("|")));
+            : setConfigOptionValue("", LIGHT_CONTROL_TABS_OPTION, tabs.join("|"));
     }
     function setLightControlTabs(this: any, b?: any, tabs?: any) {
         if (!b)
@@ -137,12 +136,12 @@ export function createConfigModalTabOptionsFeature(
     }
     function normalizeCoverOptions(this: any, options?: any) {
         var tabs: any = normalizeCoverControlTabs(configOptionValue(options, COVER_CONTROL_TABS_OPTION));
-        return preserveCardColorOptions(options, coverControlTabsAreDefault(tabs)
+        return coverControlTabsAreDefault(tabs)
             ? ""
-            : setConfigOptionValue("", COVER_CONTROL_TABS_OPTION, tabs.join("|")));
+            : setConfigOptionValue("", COVER_CONTROL_TABS_OPTION, tabs.join("|"));
     }
     function normalizeCoverOptionsForMode(this: any, options?: any, mode?: any) {
-        return preserveCardColorOptions(options, normalizeCoverMode(mode, true) === "modal" ? normalizeCoverOptions(options) : "");
+        return normalizeCoverMode(mode, true) === "modal" ? normalizeCoverOptions(options) : "";
     }
     function setCoverControlTabs(this: any, b?: any, tabs?: any) {
         if (!b)
@@ -161,7 +160,6 @@ export function createConfigModalTabOptionsFeature(
             { value: "preset", label: "Preset" },
             { value: "fan", label: "Fan" },
             { value: "swing", label: "Swing" },
-            { value: "horizontal_swing", label: "Horizontal Swing" },
         ];
     }
     function climateControlDefaultTabs(this: any) {
@@ -232,7 +230,7 @@ export function createConfigModalTabOptionsFeature(
         var effectiveTabs: any = configuredTabs ? tabs : defaultTabs;
         if (!tabListIsDefault(effectiveTabs, defaultTabs))
             out = setConfigOptionValue(out, FAN_CONTROL_TABS_OPTION, effectiveTabs.join("|"));
-        return preserveCardColorOptions(options, out);
+        return out;
     }
     function setFanControlTabs(this: any, b?: any, tabs?: any) {
         if (!b)
@@ -278,9 +276,9 @@ export function createConfigModalTabOptionsFeature(
     }
     function normalizeWifiQrTabOptions(this: any, options?: any) {
         var tabs: any = normalizeWifiQrTabs(configOptionValue(options, WIFI_QR_TABS_OPTION));
-        return preserveCardColorOptions(options, wifiQrTabsAreDefault(tabs)
+        return wifiQrTabsAreDefault(tabs)
             ? setConfigOptionValue(options, WIFI_QR_TABS_OPTION, "")
-            : setConfigOptionValue(options, WIFI_QR_TABS_OPTION, tabs.join("|")));
+            : setConfigOptionValue(options, WIFI_QR_TABS_OPTION, tabs.join("|"));
     }
     function setWifiQrTabs(this: any, b?: any, tabs?: any) {
         if (!b)

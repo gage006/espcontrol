@@ -11,7 +11,7 @@ export const redirects: Record<string, string> = {
   'card-types/weather-forecast': `${hostname}card-types/weather#temperatures-tomorrow`,
   'generated/cards/capabilities': `${hostname}reference/card-capabilities`,
   'generated/cards/runtime-coverage':
-    `${hostname}reference/card-capabilities`,
+    'https://github.com/jtenniswood/espcontrol/blob/main/dev-docs/generated/card-runtime-coverage.md',
   'generated/screens/4848s040-grid': `${hostname}screens/4848s040#card-grid`,
   'generated/screens/4848s040-install': `${hostname}screens/4848s040#install`,
   'generated/screens/jc1060p470-grid': `${hostname}screens/jc1060p470#card-grid`,
@@ -19,8 +19,6 @@ export const redirects: Record<string, string> = {
   'generated/screens/jc1060p470-v2-grid': `${hostname}screens/jc1060p470#card-grid`,
   'generated/screens/jc1060p470-v2-install': `${hostname}screens/jc1060p470-v2#install`,
   'generated/screens/jc4880p443-grid': `${hostname}screens/jc4880p443#card-grid`,
-  'generated/screens/jc4880p443-v3-grid': `${hostname}screens/jc4880p443#card-grid`,
-  'generated/screens/jc4880p443-v3-install': `${hostname}screens/jc4880p443-v3#install`,
   'generated/screens/jc4880p443-install': `${hostname}screens/jc4880p443#install`,
   'generated/screens/jc8012p4a1-grid': `${hostname}screens/jc8012p4a1`,
   'generated/screens/jc8012p4a1-install': `${hostname}screens/jc8012p4a1-v1#install`,

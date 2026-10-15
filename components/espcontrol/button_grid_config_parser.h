@@ -11,7 +11,6 @@
 #include <vector>
 
 #include "button_grid_card_runtime.h"
-#include "media_control_tabs.h"
 #include "button_grid_string.h"
 #include "camera_refresh_policy.h"
 #include "button_grid_saved_config_action_generated.h"
@@ -51,8 +50,7 @@ constexpr const char *LIGHT_CONTROL_TABS_OPTION = card_runtime_option_name_light
 constexpr const char *LIGHT_CONTROL_DEFAULT_TABS_VALUE = "power|brightness|temperature|color";
 constexpr const char *COVER_CONTROL_TABS_OPTION = card_runtime_option_name_cover_tabs();
 constexpr const char *CLIMATE_CONTROL_TABS_OPTION = "climate_tabs";
-constexpr const char *CLIMATE_CONTROL_DEFAULT_TABS_VALUE =
-  "temperature|mode|preset|fan|swing|horizontal_swing";
+constexpr const char *CLIMATE_CONTROL_DEFAULT_TABS_VALUE = "temperature|mode|preset|fan|swing";
 constexpr const char *FAN_CONTROL_TABS_OPTION = card_runtime_option_name_fan_tabs();
 constexpr const char *FAN_LIGHT_ENTITY_OPTION = card_runtime_option_name_fan_light_entity();
 constexpr const char *FAN_CONTROL_DEFAULT_TABS_VALUE = "power|speed|preset|oscillation|direction";
@@ -60,8 +58,6 @@ constexpr const char *LABEL_DISPLAY_OPTION = card_runtime_option_name_label_disp
 constexpr const char *NUMBER_DISPLAY_OPTION = card_runtime_option_name_number_display();
 constexpr const char *TEMPERATURE_STEP_OPTION = card_runtime_option_name_temperature_step();
 constexpr const char *VOLUME_MAX_OPTION = card_runtime_option_name_volume_max();
-constexpr const char *MEDIA_CONTROL_TABS_OPTION = card_runtime_option_name_media_tabs();
-constexpr const char *MEDIA_POWER_ENTITY_OPTION = card_runtime_option_name_power_entity();
 constexpr const char *MEDIA_SPEAKER_GROUP_ENTITY_OPTION = card_runtime_option_name_speaker_group_entity();
 constexpr const char *MEDIA_PLAYLIST_CONTENT_ID_OPTION = card_runtime_option_name_playlist_content_id();
 constexpr const char *MEDIA_PLAYLIST_CONTENT_TYPE_OPTION = card_runtime_option_name_playlist_content_type();
@@ -244,46 +240,6 @@ inline std::string cfg_option_value(const std::string &options, const char *name
   return "";
 }
 
-inline std::string normalize_card_color_value(std::string value) {
-  if (!value.empty() && value[0] == '#') value.erase(0, 1);
-  if (value.size() != 6) return "";
-  for (char &ch : value) {
-    if (!std::isxdigit(static_cast<unsigned char>(ch))) return "";
-    ch = static_cast<char>(std::toupper(static_cast<unsigned char>(ch)));
-  }
-  return value;
-}
-
-inline std::string card_color_options_normalized(const std::string &options) {
-  const char *names[] = {"card_off_color", "card_on_color"};
-  for (const char *name : names) {
-    const std::string value = normalize_card_color_value(cfg_option_value(options, name));
-    if (!value.empty()) {
-      return "card_off_color=" + value;
-    }
-  }
-  return "";
-}
-
-inline std::string options_without_card_colors(const std::string &options) {
-  std::string out;
-  size_t start = 0;
-  while (start < options.size()) {
-    size_t end = options.find(',', start);
-    if (end == std::string::npos) end = options.size();
-    const std::string token = options.substr(start, end - start);
-    if (token.compare(0, 14, "card_on_color=") != 0 &&
-        token.compare(0, 15, "card_off_color=") != 0) {
-      if (!token.empty()) {
-        if (!out.empty()) out += ",";
-        out += token;
-      }
-    }
-    start = end + 1;
-  }
-  return out;
-}
-
 inline bool large_numbers_explicitly_disabled(const std::string &options) {
   return cfg_option_value(options, "large_numbers") == "off";
 }
@@ -367,30 +323,14 @@ inline std::string trim_saved_option_value(const std::string &value) {
 
 #include "button_grid_media_config.h"
 
-inline void append_media_control_tabs_option(std::string &out, const std::string &options) {
-  const bool power_available = !trim_saved_option_value(cfg_option_value(options, MEDIA_POWER_ENTITY_OPTION)).empty();
-  const std::string tabs = espcontrol::media::normalize_control_tabs_value(
-    cfg_option_value(options, MEDIA_CONTROL_TABS_OPTION), power_available);
-  if (tabs == espcontrol::media::normalize_control_tabs_value("", power_available)) return;
-  if (!out.empty()) out += ",";
-  out += std::string(MEDIA_CONTROL_TABS_OPTION) + "=" + encode_compact_field(tabs);
-}
-
 inline std::string media_card_options_normalized(const std::string &options,
                                                  const std::string &mode) {
   if (mode == "control_modal") {
     std::string out;
-    const std::string power_entity = trim_saved_option_value(
-      cfg_option_value(options, MEDIA_POWER_ENTITY_OPTION));
-    if (!power_entity.empty()) {
-      out = std::string(MEDIA_POWER_ENTITY_OPTION) + "=" + encode_compact_field(power_entity);
-    }
-    append_media_control_tabs_option(out, options);
     std::string speaker_group_entity = trim_saved_option_value(
       cfg_option_value(options, MEDIA_SPEAKER_GROUP_ENTITY_OPTION));
     if (!speaker_group_entity.empty()) {
-      if (!out.empty()) out += ",";
-      out += std::string(MEDIA_SPEAKER_GROUP_ENTITY_OPTION) + "=" +
+      out = std::string(MEDIA_SPEAKER_GROUP_ENTITY_OPTION) + "=" +
         encode_compact_field(speaker_group_entity);
     }
     if (cfg_option_value(options, "label_display") == "label") {
@@ -476,12 +416,6 @@ inline std::string media_card_options_normalized(const std::string &options,
       if (!out.empty()) out += ",";
       out += std::string(VOLUME_MAX_OPTION) + "=" + std::to_string(max_pct);
     }
-    const std::string power_entity = trim_saved_option_value(cfg_option_value(options, MEDIA_POWER_ENTITY_OPTION));
-    if (!power_entity.empty()) {
-      if (!out.empty()) out += ",";
-      out += std::string(MEDIA_POWER_ENTITY_OPTION) + "=" + encode_compact_field(power_entity);
-    }
-    append_media_control_tabs_option(out, options);
     return out;
   }
   if (mode != "volume" && mode != "position") return "";
@@ -636,7 +570,7 @@ inline std::string cover_card_options_normalized(const std::string &options,
 
 inline bool climate_control_tab_token_valid(const std::string &value) {
   return value == "temperature" || value == "mode" || value == "preset" ||
-         value == "fan" || value == "swing" || value == "horizontal_swing";
+         value == "fan" || value == "swing";
 }
 
 inline std::string normalize_climate_control_tabs_value(const std::string &value) {
@@ -959,16 +893,13 @@ inline bool card_large_numbers_supported(const ParsedCfg &p) {
 inline std::string date_time_card_options_normalized(const std::string &options,
                                                      const ParsedCfg &p) {
   if (!card_large_numbers_supported(p)) return "";
-  std::string out;
   if (cfg_option_token_present(options, "large_numbers") ||
       large_numbers_explicitly_disabled(options)) {
+    std::string out;
     append_large_numbers_option(out, options);
+    return out;
   }
-  if (p.type == "clock" && cfg_option_token_present(options, "center_clock")) {
-    if (!out.empty()) out += ",";
-    out += "center_clock";
-  }
-  return out;
+  return "";
 }
 
 inline std::string normalize_garage_label_display(const std::string &value) {
@@ -1368,8 +1299,6 @@ inline std::string normalize_saved_config_subpage_options(
 }
 
 inline ParsedCfg normalize_parsed_cfg(ParsedCfg p) {
-  const std::string card_colors = card_color_options_normalized(p.options);
-  p.options = options_without_card_colors(p.options);
   migrate_saved_config_action_legacy(p);
   const bool was_legacy_text_sensor = p.type == "text_sensor";
   migrate_saved_config_sensor_legacy(p);
@@ -1425,10 +1354,6 @@ inline ParsedCfg normalize_parsed_cfg(ParsedCfg p) {
   normalize_saved_config_sensor(p, was_legacy_text_sensor,
                                 normalize_saved_config_sensor_fields,
                                 sensor_card_options_normalized);
-  if (!card_colors.empty()) {
-    if (!p.options.empty()) p.options += ",";
-    p.options += card_colors;
-  }
   return p;
 }
 

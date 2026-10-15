@@ -9,10 +9,6 @@
 
 namespace espcontrol::cards {
 
-inline bool media_driver_theme_owned_surface(const Context &context, const ParsedCfg &config) {
-  return context.family != Family::MEDIA || media_card_mode(config.sensor) != "cover_art";
-}
-
 inline bool media_driver_matches(const Context &context) {
   using Driver = card_runtime::CardDriverId;
   switch (context.runtime.driver) {
@@ -65,7 +61,7 @@ inline bool media_driver_setup_visual(
     : nullptr;
   setup_media_card(
     slot, config,
-    palette.has_on ? palette.on_val : DEFAULT_ACCENT_COLOR,
+    palette.has_on ? palette.on_val : DEFAULT_SLIDER_COLOR,
     palette.off_val, palette.sensor_val,
     display_sensor_font(display),
     compact_portrait_cover_art
@@ -82,8 +78,7 @@ inline bool media_driver_setup_visual(
       : large_cover_art
       ? display_media_cover_art_artist_font(display)
       : nullptr,
-    display_main_width_percent(display), row_span, col_span,
-    palette.custom_background, palette.progress_val);
+    display_main_width_percent(display), row_span, col_span);
 
   // Visual setup can run well before Home Assistant data binding. Own every
   // visual context immediately so a second setup pass can retire its timers
@@ -129,10 +124,6 @@ inline bool media_driver_refresh_layout(
 inline bool media_driver_cleanup(
     BtnSlot &slot, const ParsedCfg &config, const Context &context) {
   (void) config;
-  if (slot.text_lbl) {
-    lv_obj_remove_event_cb(slot.text_lbl, media_position_label_clicked_cb);
-    lv_obj_clear_flag(slot.text_lbl, LV_OBJ_FLAG_CLICKABLE);
-  }
   grid_prepare_media_runtime_for_visual_reset(slot.btn);
   if (!media_driver_matches(context)) return false;
   if (slot.btn) lv_obj_set_user_data(slot.btn, nullptr);
@@ -141,9 +132,9 @@ inline bool media_driver_cleanup(
 
 struct MediaDriverEnvironment {
   const GridConfig *grid_config = nullptr;
-  uint32_t accent_color = DEFAULT_ACCENT_COLOR;
-  uint32_t secondary_color = theme_display_color(current_theme().surface_primary);
-  uint32_t tertiary_color = theme_display_color(current_theme().surface_secondary);
+  uint32_t accent_color = DEFAULT_SLIDER_COLOR;
+  uint32_t secondary_color = SECONDARY_GREY;
+  uint32_t tertiary_color = TERTIARY_GREY;
   const lv_font_t *sensor_font = nullptr;
   const lv_font_t *control_title_font = nullptr;
   const lv_font_t *control_artist_font = nullptr;
@@ -161,11 +152,11 @@ inline MediaDriverEnvironment media_driver_environment(
   MediaDriverEnvironment environment;
   environment.grid_config = &grid_config;
   environment.accent_color = palette.has_on
-    ? palette.on_val : DEFAULT_ACCENT_COLOR;
+    ? palette.on_val : DEFAULT_SLIDER_COLOR;
   environment.secondary_color = palette.has_off
-    ? palette.off_val : theme_display_color(current_theme().surface_primary);
+    ? palette.off_val : SECONDARY_GREY;
   environment.tertiary_color = palette.has_sensor_color
-    ? palette.sensor_val : theme_display_color(current_theme().surface_secondary);
+    ? palette.sensor_val : TERTIARY_GREY;
   environment.sensor_font = display_sensor_font(display);
   environment.control_title_font = display_media_control_title_font(display);
   environment.volume_number_font = display_volume_number_font(display);
@@ -453,8 +444,7 @@ inline bool media_driver_handle_click(
     if (volume) media_volume_open_modal(volume);
   } else if (mode == "playlist") {
     send_media_playlist_action(config);
-  } else if (mode == "position" ||
-             espcontrol::media::tap_action_from_saved(config) == espcontrol::media::TapAction::PLAY_PAUSE) {
+  } else if (espcontrol::media::tap_action_from_saved(config) == espcontrol::media::TapAction::PLAY_PAUSE) {
     send_media_playback_action(config.entity, "play_pause");
   } else if (mode == "cover_art") {
     MediaControlCtx *control = button
@@ -476,7 +466,7 @@ inline bool media_driver_subpage_clickable(
     const ParsedCfg &config) {
   const std::string mode = media_card_mode(config.sensor);
   return media_control_modal_mode(mode) || mode == "volume" ||
-         mode == "playlist" || mode == "cover_art" || mode == "position" ||
+         mode == "playlist" || mode == "cover_art" ||
          media_playback_button_mode(mode) ||
          espcontrol::media::tap_action_from_saved(config) == espcontrol::media::TapAction::PLAY_PAUSE;
 }

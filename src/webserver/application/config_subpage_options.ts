@@ -1,4 +1,3 @@
-import { preserveCardColorOptions } from "../model/config_primitives";
 import {
     configOptionEnabled,
     configOptionValue,
@@ -74,7 +73,7 @@ import {
             (configOptionEnabled(options, SENSOR_LARGE_NUMBERS_OPTION) || largeNumbersExplicitlyDisabled(options))) {
             out = copyLargeNumbersOption(out, options);
         }
-        return preserveCardColorOptions(options, out);
+        return out;
     }
 export {
     normalizeSubpageKind,

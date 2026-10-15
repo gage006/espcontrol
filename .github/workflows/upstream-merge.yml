@@ -1,0 +1,53 @@
+name: Merge Validated Upstream
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [sync/upstream]
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+concurrency:
+  group: fork-upstream-sync
+  cancel-in-progress: false
+
+jobs:
+  merge:
+    if: >-
+      github.repository == 'gage006/espcontrol' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Merge only the tested integration revision
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TESTED_SHA: ${{ github.event.workflow_run.head_sha }}
+          CI_RUN_ID: ${{ github.event.workflow_run.id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # A successful run with skipped validation is not sufficient.
+          passed=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CI_RUN_ID/jobs?per_page=100" --jq '[.jobs[] | select(.name == "Validate Generated Files" or .name == "Build Docs") | select(.conclusion == "success")] | length')
+          test "$passed" = 2
+          git fetch origin sync/upstream main
+          test "$(git rev-parse origin/sync/upstream)" = "$TESTED_SHA"
+          # A newer fork base needs a new integration and CI run.
+          git merge-base --is-ancestor origin/main "$TESTED_SHA"
+          # Run trusted main's routing guard against the tested tree.
+          mkdir -p "$RUNNER_TEMP/fork-candidate"
+          git archive "$TESTED_SHA" | tar -x -C "$RUNNER_TEMP/fork-candidate"
+          python3 scripts/check_fork_config.py "$RUNNER_TEMP/fork-candidate"
+          pr=$(gh pr list --repo "$GITHUB_REPOSITORY" --base main --head sync/upstream --state open --json number --jq '.[0].number // empty')
+          test -n "$pr"
+          gh pr merge "$pr" --repo "$GITHUB_REPOSITORY" --merge --match-head-commit "$TESTED_SHA"
+          test "$(gh pr view "$pr" --repo "$GITHUB_REPOSITORY" --json state --jq .state)" = MERGED
+          gh workflow run pages.yml --repo "$GITHUB_REPOSITORY" --ref main

@@ -16,7 +16,6 @@ export function registerCalendarCardTypes(
 ): void {
     const { cardBadgeLabelHtml, cardLargeNumbersHidePreviewLabel, cardSensorPreviewHtml } = fields;
     const {
-        dateTimeCardDateParts,
         dateTimeCardTimeParts,
         metadata,
         monthNameForIndex,
@@ -49,11 +48,8 @@ export function registerCalendarCardTypes(
             const buttonClass = hideLabel
                 ? (isDateTime ? "sp-clock-wide-large" : "sp-date-time-wide-large")
                 : undefined;
-            const date = isDateTime
-                ? dateTimeCardDateParts()
-                : { day: String(current.getUTCDate()), month: monthNameForIndex(current.getUTCMonth()) };
-            const day = date.day;
-            const month = date.month;
+            const day = String(current.getUTCDate());
+            const month = monthNameForIndex(current.getUTCMonth());
             if (isDateTime) {
                 const time = dateTimeCardTimeParts();
                 return {

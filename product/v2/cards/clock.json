@@ -18,12 +18,6 @@
       "label": "Large Clock",
       "kind": "flag",
       "omitDefault": true
-    },
-    {
-      "name": "center_clock",
-      "label": "Center Clock",
-      "kind": "flag",
-      "omitDefault": true
     }
   ],
   "normalization": {
@@ -39,7 +33,7 @@
       "options": { "policy": "hook", "hook": "normalize_date_time_options" }
     },
     "unknownOptions": "drop",
-    "canonicalOptionOrder": ["large_numbers", "center_clock"],
+    "canonicalOptionOrder": ["large_numbers"],
     "optionHook": "normalize_date_time_options"
   },
   "default": {

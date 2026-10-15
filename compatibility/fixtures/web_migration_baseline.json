@@ -3,7 +3,6 @@
     "guition-esp32-p4-jc1060p470",
     "guition-esp32-p4-jc1060p470-v2",
     "guition-esp32-p4-jc4880p443",
-    "guition-esp32-p4-jc4880p443-v3",
     "guition-esp32-p4-jc8012p4a1",
     "guition-esp32-p4-jc8012p4a1-v2",
     "guition-esp32-p4-jc8012p4a1-v3",
@@ -56,7 +55,7 @@
       "coverArtSecondaryMediaPlayerEntity": "", "coverArtPlaybackControl": true,
       "coverArtAttributeConditions": "", "coverArtDelay": 10, "coverArtTrackOverlayDuration": 5,
       "coverArtHideExternalInput": true, "coverArtHomeAssistantHost": "", "coverArtHomeAssistantEndpointMode": "Manual", "coverArtHomeAssistantProtocol": "https", "coverArtHomeAssistantPort": 8123,
-      "autoUpdate": true, "updateFrequency": "Weekly", "screensaverAction": "off", "clockScreensaver": false, "clockDate": false, "clockOverlay": false,
+      "autoUpdate": true, "updateFrequency": "Weekly", "screensaverAction": "off", "clockScreensaver": false, "clockOverlay": false,
       "clockBrightnessDay": 35, "clockBrightnessNight": 35, "screensaverDimmedBrightness": 10,
       "screensaverDimmedBrightnessDay": 10, "screensaverDimmedBrightnessNight": 10,
       "screensaverTimeout": 300, "homeScreenTimeout": 60, "screenRotation": "90"
@@ -105,5 +104,5 @@
       "/number/Screen%20Saver%3A%20Cover%20Art%20Delay/set?value=30"
     ]
   },
-  "bundleBudget": { "minified": 2750000, "gzip": 1150000 }
+  "bundleSize": { "minified": 2625115, "gzip": 1093935, "gzipTolerance": 9216 }
 }

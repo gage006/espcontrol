@@ -138,28 +138,7 @@ export function applySpans(
   maxSlots: number,
   gridCols: number,
 ): void {
-  let entries = grid.slice(0, maxSlots);
-  const unavailablePositions: number[] = [];
-  for (let i = 0; i < entries.length; i += 1) {
-    if (entries[i]! > maxSlots) unavailablePositions.push(i);
-  }
-  const preservedEntries = unavailablePositions.length > 0
-    ? grid.filter((slot) => slot > maxSlots)
-    : [];
-  const trailingCapacity = Math.max(0, grid.length - maxSlots);
-  if (preservedEntries.length > trailingCapacity) return;
-  if (unavailablePositions.length > 0) {
-    const visibleEntries = entries.filter(
-      (slot) => slot === -2 || (slot > 0 && slot <= maxSlots),
-    );
-    const trailingVisibleEntries = grid.slice(maxSlots).filter(
-      (slot) => slot === -2 || (slot > 0 && slot <= maxSlots),
-    );
-    if (visibleEntries.length + trailingVisibleEntries.length > maxSlots) return;
-    visibleEntries.push(...trailingVisibleEntries);
-    entries = visibleEntries;
-  }
-
+  const entries = grid.slice(0, maxSlots);
   interface GridEntry {
     readonly slot: number;
     readonly originalPos: number;
@@ -170,7 +149,7 @@ export function applySpans(
   const items: GridEntry[] = [];
   for (let i = 0; i < maxSlots; i += 1) {
     const slot = entries[i] ?? 0;
-    if (!(slot > 0 && slot <= maxSlots || slot === -2)) continue;
+    if (!(slot > 0 || slot === -2)) continue;
     const size = sizes[String(slot)] || 1;
     const candidates: number[] = [];
     for (let offset = 0; offset < maxSlots; offset += 1) {
@@ -248,11 +227,6 @@ export function applySpans(
   search(0, Array<number>(maxSlots).fill(0), {}, 0);
   const plannedGrid = bestGrid || Array<number>(maxSlots).fill(0);
   for (let i = 0; i < maxSlots; i += 1) grid[i] = plannedGrid[i] ?? 0;
-  if (unavailablePositions.length > 0) {
-    for (let i = maxSlots; i < grid.length; i += 1) {
-      grid[i] = preservedEntries[i - maxSlots] ?? 0;
-    }
-  }
   for (const item of items) {
     if (item.size <= 1 || bestDowngraded[String(item.slot)]) delete sizes[String(item.slot)];
   }
@@ -263,7 +237,6 @@ export function parseGridOrder(
   maxSlots: number,
   gridCols: number,
   initialSizes?: SlotSizeMap,
-  activeSlots: number = maxSlots,
 ): ParsedGridOrder {
   const grid = Array<number>(maxSlots).fill(0);
   const sizes = copySizes(initialSizes);
@@ -280,7 +253,7 @@ export function parseGridOrder(
       if (parsedSize > 1) sizes[String(slot)] = parsedSize;
     }
   }
-  applySpans(grid, sizes, activeSlots, gridCols);
+  applySpans(grid, sizes, maxSlots, gridCols);
   return { grid, sizes };
 }
 

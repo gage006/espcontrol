@@ -149,14 +149,6 @@ class PNGFormat(Format):
         cg.add_library("pngle", "1.1.0")
 
 
-class GIFFormat(Format):
-    def __init__(self):
-        super().__init__("GIF")
-
-    def actions(self):
-        cg.add_define("USE_ARTWORK_IMAGE_GIF_SUPPORT")
-
-
 class AutoFormat(Format):
     def __init__(self):
         super().__init__("AUTO")
@@ -165,7 +157,6 @@ class AutoFormat(Format):
         JPEGFormat().actions()
         PNGFormat().actions()
         BMPFormat().actions()
-        GIFFormat().actions()
 
 
 IMAGE_FORMATS = {
@@ -175,7 +166,6 @@ IMAGE_FORMATS = {
         BMPFormat(),
         JPEGFormat(),
         PNGFormat(),
-        GIFFormat(),
     )
 }
 IMAGE_FORMATS.update({"JPG": IMAGE_FORMATS["JPEG"]})

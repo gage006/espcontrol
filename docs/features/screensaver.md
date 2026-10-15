@@ -32,17 +32,13 @@ If the 10 or 30 second choices are not shown, update the panel firmware first. T
 Use **Then** to choose what happens when the screensaver activates:
 
 - **Screen Dimmed** — keeps the normal screen visible, but lowers the backlight. The first tap wakes the screen instead of pressing a card.
-- **Clock** — shows a large drifting clock at reduced brightness. The time updates at each minute boundary, and the clock repositions itself to prevent burn-in.
+- **Clock** — shows a large drifting clock at reduced brightness. The clock repositions itself periodically to prevent burn-in.
 - **Display Off** (the default) — switches to a black screen and turns the backlight off completely. While the backlight is off, EspControl can exercise the LCD pixels in the background to reduce burn-in risk; this should not be visible.
 - **Camera** — on ESP32-P4 panels and the 4-inch 4848S040 ESP32-S3 panel, shows the selected `camera.*` or `image.*` entity full-screen. Choose **Fit** to keep the whole image visible (with black space where its shape does not match the panel) or **Fill** to crop the image to the screen. The image refreshes when Home Assistant reports an update and the previous successful image stays visible while a replacement downloads. If no image is available, the panel shows **Camera unavailable** and retries safely.
 
 When Screen Dimmed is selected, Manual brightness mode uses **Dimmed Screen Brightness**. Automatic and Timed brightness modes use separate **Daytime Dimmed Screen Brightness** and **Nighttime Dimmed Screen Brightness** values, changing at the same sunrise/sunset or dawn/dusk boundary as the main screen. When Clock is selected, set separate **Daytime Clock Brightness** and **Nighttime Clock Brightness** values.
 
-**Show date** adds the local date below the Clock screensaver, centered in a smaller font. It is off by default, is saved across restarts, and moves with the clock to reduce burn-in. The month uses the panel’s selected language. Update the panel firmware if the toggle is not shown.
-
 The 4-inch ESP32-S3 camera screensaver uses the panel's native 480×480 resolution. The screensaver requests the original Home Assistant snapshot to avoid extra compression, then resizes it on the panel. If downloading or decoding it fails, subsequent requests ask Home Assistant for display-sized snapshots for the rest of that screensaver session. Sharpness still depends on the source image; filtered JPEG resizing preserves detail when reducing images and smooths edges when enlarging them.
-
-Animated GIFs from the selected `camera.*` or `image.*` entity play automatically in the Camera screensaver, with both **Fit** and **Fill** supported. Playback stops when you wake the panel or leave Camera mode. The usual [GIF file, size and memory limits](/card-types/cameras#setting-up-a-camera-card) apply; large images may play more slowly. Single-frame GIFs remain still. The media Cover Art screensaver continues to show a still frame.
 
 ### Photos from Immich
 

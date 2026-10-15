@@ -38,7 +38,6 @@ const GROUP_ORDER = [
   'Weather',
   'Appliances',
   'Media & Entertainment',
-  'Files & Folders',
   'Water & Outdoors',
   'Network & Tech',
   'Rooms & Furniture',
@@ -288,11 +287,6 @@ const ICON_GROUPS = {
   'Chef Hat': 'Appliances',
 
   'Cast': 'Media & Entertainment',
-  'Folder Account Outline': 'Files & Folders',
-  'Folder Home Outline': 'Files & Folders',
-  'Folder Key Outline': 'Files & Folders',
-  'Folder Open Outline': 'Files & Folders',
-  'Folder Outline': 'Files & Folders',
   'Folder Music Outline': 'Media & Entertainment',
   'Folder Play': 'Media & Entertainment',
   'Gamepad': 'Media & Entertainment',
@@ -392,8 +386,6 @@ const ICON_GROUPS = {
   'Car Electric': 'Vehicles',
   'EV Charger': 'Vehicles',
   'Airplane': 'Vehicles',
-  'Bus': 'Vehicles',
-  'Train': 'Vehicles',
 
   'Medication': 'Health',
   'Medication Outline': 'Health',
