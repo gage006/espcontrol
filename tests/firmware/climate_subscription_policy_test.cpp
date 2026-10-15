@@ -5,11 +5,10 @@
 int main() {
   using namespace espcontrol::climate;
 
-  constexpr auto default_tabs = "temperature|mode|preset|fan|swing|horizontal_swing";
+  constexpr auto default_tabs = "temperature|mode|preset|fan|swing";
   static_assert(configured_climate_tab_mask(default_tabs) ==
                 (CLIMATE_TAB_TEMPERATURE | CLIMATE_TAB_MODE |
-                 CLIMATE_TAB_PRESET | CLIMATE_TAB_FAN | CLIMATE_TAB_SWING |
-                 CLIMATE_TAB_HORIZONTAL_SWING));
+                 CLIMATE_TAB_PRESET | CLIMATE_TAB_FAN | CLIMATE_TAB_SWING));
   // A supported temperature fallback needs no optional current value, even
   // when temperature was not one of the configured tabs.
   SubscriptionCapabilities temperature_fallback{true, false, true, false, false};
@@ -31,12 +30,6 @@ int main() {
   assert(required_optional_subscription_mask("temperature", swing_fallback) ==
          OPTIONAL_SUBSCRIPTION_SWING);
 
-  SubscriptionCapabilities horizontal_swing_fallback{
-      false, false, false, false, false, true};
-  assert(required_optional_subscription_mask(
-             "temperature", horizontal_swing_fallback) ==
-         OPTIONAL_SUBSCRIPTION_HORIZONTAL_SWING);
-
   SubscriptionCapabilities mode_fallback{false, true, true, true, true};
   assert(required_optional_subscription_mask("temperature", mode_fallback) == 0);
 
@@ -54,8 +47,6 @@ int main() {
 
   assert(configured_optional_subscription_mask("fan|fan|swing") ==
          (OPTIONAL_SUBSCRIPTION_FAN | OPTIONAL_SUBSCRIPTION_SWING));
-  assert(configured_optional_subscription_mask("horizontal_swing") ==
-         OPTIONAL_SUBSCRIPTION_HORIZONTAL_SWING);
 
   OptionalSubscriptionState state;
   assert(state.mark_required(OPTIONAL_SUBSCRIPTION_FAN));

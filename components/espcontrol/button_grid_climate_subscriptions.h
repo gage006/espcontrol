@@ -7,6 +7,7 @@ inline lv_timer_t *&climate_optional_subscription_timer() {
   static lv_timer_t *timer = nullptr;
   return timer;
 }
+
 inline espcontrol::climate::SubscriptionCapabilities
 climate_subscription_capabilities(ClimateControlCtx *ctx) {
   espcontrol::climate::SubscriptionCapabilities capabilities;
@@ -16,7 +17,6 @@ climate_subscription_capabilities(ClimateControlCtx *ctx) {
   capabilities.preset = !ctx->preset_modes.empty();
   capabilities.fan = !ctx->fan_modes.empty();
   capabilities.swing = !ctx->swing_modes.empty();
-  capabilities.horizontal_swing = !ctx->swing_horizontal_modes.empty();
   return capabilities;
 }
 
@@ -36,9 +36,6 @@ inline bool climate_subscribe_optional_field(ClimateControlCtx *ctx,
   } else if (field == espcontrol::climate::OPTIONAL_SUBSCRIPTION_SWING) {
     attribute = "swing_mode";
     target = &ClimateControlCtx::swing_mode;
-  } else if (field == espcontrol::climate::OPTIONAL_SUBSCRIPTION_HORIZONTAL_SWING) {
-    attribute = "swing_horizontal_mode";
-    target = &ClimateControlCtx::swing_horizontal_mode;
   } else {
     return false;
   }
@@ -69,7 +66,6 @@ inline bool climate_subscribe_optional_fields(ClimateControlCtx *ctx,
     espcontrol::climate::OPTIONAL_SUBSCRIPTION_PRESET,
     espcontrol::climate::OPTIONAL_SUBSCRIPTION_FAN,
     espcontrol::climate::OPTIONAL_SUBSCRIPTION_SWING,
-    espcontrol::climate::OPTIONAL_SUBSCRIPTION_HORIZONTAL_SWING,
   };
   for (uint8_t field : optional_fields) {
     if ((fields & field) != 0) {
@@ -130,3 +126,4 @@ inline void climate_process_pending_optional_subscriptions(lv_timer_t *timer) {
     lv_timer_del(timer);
   }
 }
+

@@ -1,4 +1,3 @@
-import { preserveCardColorOptions } from "../model/config_primitives";
 import { state } from "../state/app_instance";
 import {
     configOptionEnabled,
@@ -187,7 +186,7 @@ export function createConfigImageOptionsFeature(dependencies: ConfigImageOptions
                 out = setConfigOptionValue(out, "image_modal_refresh_trigger", trigger);
             }
         }
-        return preserveCardColorOptions(options, out);
+        return out;
     }
     function setImageLabelEnabled(this: any, b?: any, enabled?: any) {
         if (!b)

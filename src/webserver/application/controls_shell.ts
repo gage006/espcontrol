@@ -177,7 +177,6 @@ export function createControlsShellFeature(
                 '<div class="sp-main"></div>' +
                 "</div>";
         page.appendChild(wrap);
-        els.previewScreen = wrap.querySelector(".sp-screen");
         els.topbar = wrap.querySelector(".sp-topbar");
         els.clockBarSections = {
             left: wrap.querySelector('[data-clockbar-section="left"]'),

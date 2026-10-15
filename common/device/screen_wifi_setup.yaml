@@ -4,16 +4,10 @@
 # Captive portal instructions shown when WiFi is disconnected.
 # =============================================================================
 
-esphome:
-  on_boot:
-    - priority: -210
-      then:
-        - lambda: 'register_theme_static_page(id(wifi_setup_page)->obj);'
-
 lvgl:
   pages:
     - id: wifi_setup_page
-      bg_color: $theme_background_color
+      bg_color: 0x000000
       scrollable: false
       pad_all: 0
       widgets:
@@ -55,20 +49,20 @@ lvgl:
                     - label:
                         text_font: $setup_icon_font_id
                         text: $icon_wifi_startup
-                        text_color: $theme_text_primary_color
+                        text_color: 0xFFFFFF
                         text_align: center
                     - label:
                         id: wifi_setup_title
                         text: ""
                         text_font: $setup_title_font_id
-                        text_color: $theme_text_primary_color
+                        text_color: 0xFFFFFF
                         width: $content_width
                         text_align: center
                     - label:
                         id: wifi_setup_instructions
                         text: ""
                         text_font: $setup_body_font_id
-                        text_color: $theme_text_muted_color
+                        text_color: 0xB0B0B0
                         width: $content_width
                         text_align: center
 
@@ -80,8 +74,7 @@ script:
           lv_label_set_text(id(wifi_setup_title), espcontrol_i18n("Configure your WiFi"));
           std::string hotspot_ssid = wifi::global_wifi_component->get_ap().get_ssid().str();
           if (hotspot_ssid.empty()) hotspot_ssid = "${friendly_name}";
-          std::string msg = std::string(espcontrol_i18n_key("connect_to_the_wifi_hotspot")) +
+          std::string msg = std::string(espcontrol_i18n_key("connect_to")) +
                             " '" + hotspot_ssid + "' " +
-                            espcontrol_i18n_key("to_configure_your_network") +
-                            "\n" + espcontrol_i18n_key("then_visit_192_168_4_1_in_your_browser");
+                            espcontrol_i18n_key("to_configure_your_network_settings");
           lv_label_set_display_text(id(wifi_setup_instructions), msg.c_str());

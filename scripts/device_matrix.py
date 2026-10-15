@@ -89,13 +89,7 @@ def nightly_matrix(profiles: dict[str, dict[str, Any]]) -> dict[str, list[dict[s
 
 
 def pr_matrix(profiles: dict[str, dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
-    # Keep pull request feedback quick by compiling one representative device
-    # for each chip family. Nightly and release builds still cover every device.
-    representatives: dict[str, dict[str, Any]] = {}
-    for slug, profile in profiles.items():
-        chip = profile["firmware"]["build"]["chip"]
-        representatives.setdefault(chip, {"slug": slug, "recovery": chip == RECOVERY_CHIP_FAMILY})
-    return {"include": list(representatives.values())}
+    return nightly_matrix(profiles)
 
 
 def write_json(data: Any) -> None:

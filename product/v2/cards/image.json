@@ -20,7 +20,7 @@
     },
     {
       "name": "image_modal_mode",
-      "label": "Image fit",
+      "label": "Expanded Image",
       "kind": "choice",
       "values": [
         "fill",

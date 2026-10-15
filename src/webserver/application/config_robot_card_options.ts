@@ -1,4 +1,3 @@
-import { preserveCardColorOptions } from "../model/config_primitives";
 import {
     normalizeSavedConfigVacuumIconOn,
     normalizeSavedConfigVacuumOptions,
@@ -107,7 +106,7 @@ export function createConfigRobotCardOptionsFeature() {
         button.sensor = normalizeSavedConfigVacuumSensor(String(button.sensor || ""));
         button.unit = vacuumModeNeedsArea(button.sensor) ? (button.unit || "") : "";
         button.precision = normalizeSavedConfigVacuumPrecision(String(button.precision || ""));
-        button.options = preserveCardColorOptions(button.options, normalizeSavedConfigVacuumOptions(String(button.options || "")));
+        button.options = normalizeSavedConfigVacuumOptions(String(button.options || ""));
         button.icon_on = normalizeSavedConfigVacuumIconOn(String(button.icon_on || ""));
         if (!button.icon || button.icon === "Auto")
             button.icon = vacuumModeDefaultIcon(button.sensor);

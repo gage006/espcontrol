@@ -219,7 +219,6 @@ export interface DeviceProfile {
     portrait?: {
       cols: number;
       rows: number;
-      slots?: number;
       screen: {
         width: string;
         aspect: string;
